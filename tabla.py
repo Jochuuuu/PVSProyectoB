@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from estructuras.hash import ExtendibleHashFile
 from estructuras.avl import AVLFile
-from estructuras.btree import BPlusTree
 from estructuras.point_class import Point 
 from estructuras.rtreee import RTreeFile  
 
@@ -97,8 +96,8 @@ class TableStorageManager:
         INDEX_CLASSES = {
             'hash': ExtendibleHashFile,
             'avl': AVLFile,
-            'btree': BPlusTree,  
-            'isam': BPlusTree,
+            'btree': AVLFile,  
+            'isam': AVLFile,
             'rtree': RTreeFile   
         }
 
@@ -423,41 +422,7 @@ class TableStorageManager:
         file_size = self._get_file_size()
         return (file_size - self.header_size) // self.record_size
     
-    def _update_indices(self, record, id):
-        """
-        Actualiza los índices para un registro específico.
-        
-        Args:
-            record: Diccionario con los datos del registro
-            id: ID del registro
-        """
-        for attr_name, index in self.indices.items():
-            if attr_name in record:
-                value = record[attr_name]
-                if value not in index:
-                    index[value] = []
-                
-                # Asegurarse de que el ID no está duplicado en el índice
-                if id not in index[value]:
-                    index[value].append(id)
-    
-    def _remove_from_indices(self, record, id):
-        """
-        Elimina un registro de los índices (método legacy).
-        
-        Args:
-            record: Diccionario con los datos del registro
-            id: ID del registro
-        """
-        for attr_name, index in self.indices.items():
-            if attr_name in record:
-                value = record[attr_name]
-                if value in index and id in index[value]:
-                    index[value].remove(id)
-                    
-                    # Si la lista está vacía, eliminar la entrada del índice
-                    if not index[value]:
-                        del index[value]
+ 
     
     def insert(self, record_data):
         """
@@ -854,72 +819,7 @@ class TableStorageManager:
         # Eliminar el campo 'next' para devolver solo los atributos de la tabla
         del record['next']
         return record
-
-
-    # Resto de métodos siguen siendo los mismos...
-    def update(self, id, record_data):
-        """Actualiza un registro existente."""
-        current_record = self._read_record(id)
-        if not current_record or current_record['next'] != self.RECORD_NORMAL:
-            return False
-        
-        # Eliminar de los índices antes de actualizar
-        self._remove_from_indices(current_record, id)
-        
-        # Validar y convertir los nuevos datos
-        validated_data = self._validate_and_convert_record(record_data)
-        
-        # Actualizar los datos manteniendo el campo 'next'
-        updated_record = {**current_record, **validated_data, 'next': current_record['next']}
-        
-        # Escribir el registro actualizado
-        self._write_record(id, updated_record)
-        
-        # Actualizar los índices con los nuevos datos
-        self._update_indices(updated_record, id)
-        
-        return True
-
-    def find_by_attribute(self, attr_name, value):
-        """Busca registros por un atributo específico."""
-        # Convertir valor al tipo apropiado
-        converted_value = self._convert_search_value(attr_name, value)
-        
-        # Si existe un índice para este atributo, usarlo
-        if attr_name in self.indices:
-            result = []
-            record_ids = self.indices[attr_name].search(converted_value)
-            for record_id in record_ids:
-                record = self.get(record_id)
-                if record:
-                    result.append(record)
-            return result
-        
-        # Si no hay índice, hacer búsqueda secuencial
-        result = []
-        record_count = self._get_record_count()
-        
-        for i in range(1, record_count + 1):
-            record = self._read_record(i)
-            if (record and 
-                record['next'] == self.RECORD_NORMAL and 
-                attr_name in record):
-                
-                # Comparar considerando objetos Point
-                record_value = record[attr_name]
-                try:
-                    if record_value == converted_value:
-                        record_copy = record.copy()
-                        del record_copy['next']
-                        result.append(record_copy)
-                except:
-                    # Si la comparación falla, convertir a string
-                    if str(record_value) == str(converted_value):
-                        record_copy = record.copy()
-                        del record_copy['next']
-                        result.append(record_copy)
-        
-        return result
+ 
     
     def get_all_records(self):
         """Obtiene todos los registros no eliminados."""
@@ -935,14 +835,3 @@ class TableStorageManager:
         
         return result
     
-    def rebuild_indices(self):
-        """Reconstruye todos los índices leyendo los registros de la tabla."""
-        for attr_name in self.indices:
-            self.indices[attr_name] = {}
-        
-        record_count = self._get_record_count()
-        
-        for i in range(1, record_count + 1):
-            record = self._read_record(i)
-            if record and record['next'] == self.RECORD_NORMAL:
-                self._update_indices(record, i)

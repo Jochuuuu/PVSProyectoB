@@ -110,13 +110,64 @@ function selectTable(tableName) {
     showToast(`Tabla ${tableName} seleccionada`, 'success');
 }
 
-async function executeQuery() {
+// Función para obtener el texto seleccionado o todo el contenido
+function getQueryToExecute() {
     const queryInput = document.getElementById('sqlQuery');
-    const sql = queryInput.value.trim();
+    const selectedText = queryInput.value.substring(queryInput.selectionStart, queryInput.selectionEnd);
     
-    if (!sql) {
-        showToast('Ingresa una consulta SQL', 'warning');
+    // Si hay texto seleccionado, devolver solo eso
+    if (selectedText.trim()) {
+        return selectedText.trim();
+    }
+    
+    // Si no hay selección, devolver todo el contenido
+    return queryInput.value.trim();
+}
+
+// Función para resaltar temporalmente el texto que se va a ejecutar
+function highlightExecutedQuery(queryToExecute) {
+    const queryInput = document.getElementById('sqlQuery');
+    const fullText = queryInput.value;
+    
+    if (queryToExecute === fullText.trim()) {
+        // Si se ejecuta todo, seleccionar todo temporalmente
+        queryInput.select();
+        setTimeout(() => {
+            queryInput.setSelectionRange(queryInput.value.length, queryInput.value.length);
+        }, 300);
+    } else {
+        // Si se ejecuta una selección, mantener la selección visible por un momento
+        const startIndex = fullText.indexOf(queryToExecute);
+        if (startIndex !== -1) {
+            queryInput.focus();
+            queryInput.setSelectionRange(startIndex, startIndex + queryToExecute.length);
+            setTimeout(() => {
+                queryInput.setSelectionRange(queryInput.value.length, queryInput.value.length);
+            }, 300);
+        }
+    }
+}
+
+async function executeQuery() {
+    const queryToExecute = getQueryToExecute();
+    
+    if (!queryToExecute) {
+        showToast('Selecciona una consulta o escribe algo para ejecutar', 'warning');
         return;
+    }
+    
+    // Mostrar qué se va a ejecutar
+    highlightExecutedQuery(queryToExecute);
+    
+    // Determinar si es una selección o todo el contenido
+    const queryInput = document.getElementById('sqlQuery');
+    const selectedText = queryInput.value.substring(queryInput.selectionStart, queryInput.selectionEnd);
+    const isSelection = selectedText.trim().length > 0;
+    
+    if (isSelection) {
+        showToast('Ejecutando texto seleccionado...', 'success');
+    } else {
+        showToast('Ejecutando consulta completa...', 'success');
     }
     
     showLoading(true);
@@ -129,18 +180,22 @@ async function executeQuery() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ sql: sql })
+            body: JSON.stringify({ sql: queryToExecute })
         });
         
         const data = await response.json();
         const executionTime = (Date.now() - startTime) / 1000;
         
         if (response.ok && data.success) {
-            displayResults(data, executionTime);
-            addToHistory(sql, data);
-            showToast('Consulta ejecutada exitosamente', 'success');
+            displayResults(data, executionTime, queryToExecute, isSelection);
+            addToHistory(queryToExecute, data);
             
-            if (sql.toUpperCase().includes('CREATE TABLE') || sql.toUpperCase().includes('DROP TABLE')) {
+            const successMessage = isSelection ? 
+                'Selección ejecutada exitosamente' : 
+                'Consulta ejecutada exitosamente';
+            showToast(successMessage, 'success');
+            
+            if (queryToExecute.toUpperCase().includes('CREATE TABLE') || queryToExecute.toUpperCase().includes('DROP TABLE')) {
                 await loadTables();
             }
         } else {
@@ -149,14 +204,17 @@ async function executeQuery() {
         
     } catch (error) {
         displayError(error.message);
-        showToast(`Error: ${error.message}`, 'error');
+        const errorMessage = isSelection ? 
+            `Error en selección: ${error.message}` : 
+            `Error: ${error.message}`;
+        showToast(errorMessage, 'error');
         console.error('Error ejecutando consulta:', error);
     } finally {
         showLoading(false);
     }
 }
 
-function displayResults(data, executionTime) {
+function displayResults(data, executionTime, executedQuery, wasSelection) {
     const resultsInfo = document.getElementById('resultsInfo');
     const resultsTable = document.getElementById('resultsTable');
     const noResults = document.getElementById('noResults');
@@ -180,9 +238,10 @@ function displayResults(data, executionTime) {
         }
     }
     
-    // Actualizar info header
+    // Actualizar info header con indicador de selección
+    const selectionIndicator = wasSelection ? ' (selección)' : '';
     resultsInfo.innerHTML = `
-        <span class="record-count">${totalRecords} records</span>
+        <span class="record-count">${totalRecords} records${selectionIndicator}</span>
         <span class="execution-time">${executionTime.toFixed(3)} sec</span>
     `;
     
@@ -200,11 +259,21 @@ function displayResults(data, executionTime) {
             <i class="fas fa-check-circle" style="color: var(--success-color);"></i>
             <p><strong>${operation}</strong></p>
             <p>${message}</p>
+            ${wasSelection ? '<p><em>Ejecutado desde selección</em></p>' : ''}
         `;
     }
     
-    // Actualizar explain tab
-    explainContent.textContent = JSON.stringify(data, null, 2);
+    // Actualizar explain tab con información adicional
+    const explainData = {
+        ...data,
+        execution_info: {
+            executed_query: executedQuery,
+            was_selection: wasSelection,
+            execution_time_ms: executionTime * 1000,
+            timestamp: new Date().toISOString()
+        }
+    };
+    explainContent.textContent = JSON.stringify(explainData, null, 2);
 }
 
 function displayTable(records) {
@@ -351,22 +420,53 @@ function addToHistory(sql, result) {
 }
 
 function setupEventListeners() {
-    document.getElementById('sqlQuery').addEventListener('keydown', function(e) {
+    const queryInput = document.getElementById('sqlQuery');
+    
+    // Ejecutar con Ctrl+Enter
+    queryInput.addEventListener('keydown', function(e) {
         if (e.ctrlKey && e.key === 'Enter') {
             e.preventDefault();
             executeQuery();
         }
     });
     
+    // Ejecutar selección con F5
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
+        if (e.key === 'F5') {
+            e.preventDefault();
+            executeQuery();
+        } else if (e.key === 'Escape') {
             showLoading(false);
         }
+    });
+    
+    // Mostrar tooltip cuando hay selección
+    queryInput.addEventListener('mouseup', function() {
+        updateExecuteButtonText();
+    });
+    
+    queryInput.addEventListener('keyup', function() {
+        updateExecuteButtonText();
     });
     
     document.getElementById('toast').addEventListener('click', function() {
         this.classList.remove('show');
     });
+}
+
+// Actualizar texto del botón ejecutar según si hay selección
+function updateExecuteButtonText() {
+    const queryInput = document.getElementById('sqlQuery');
+    const executeBtn = document.querySelector('.btn-primary');
+    const selectedText = queryInput.value.substring(queryInput.selectionStart, queryInput.selectionEnd);
+    
+    if (selectedText.trim()) {
+        executeBtn.innerHTML = '<i class="fas fa-play"></i> Ejecutar Selección';
+        executeBtn.title = 'Ejecutar solo el texto seleccionado (Ctrl+Enter o F5)';
+    } else {
+        executeBtn.innerHTML = '<i class="fas fa-play"></i> Ejecutar';
+        executeBtn.title = 'Ejecutar toda la consulta (Ctrl+Enter o F5)';
+    }
 }
 
 function insertCreateTable() {
@@ -424,7 +524,8 @@ if (window.location.hostname === 'localhost') {
         loadTables,
         executeQuery,
         showToast,
-        queryHistory: () => queryHistory
+        queryHistory: () => queryHistory,
+        getQueryToExecute
     };
     console.log('🔧 Debug helpers disponibles en window.debugAPI');
 }

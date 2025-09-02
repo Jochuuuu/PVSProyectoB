@@ -138,12 +138,7 @@ class ExtendibleHashFile:
         """
         return self.header_size + (record_num - 1) * self.record_size
 
-    def _get_record_num_from_position(self, position):
-        """
-        Calcula el número de registro a partir de su posición en bytes.
-        """
-        return ((position - self.header_size) // self.record_size) + 1
-    
+   
     
     def get_attribute_from_record_num(self, record_num):
         """
@@ -579,34 +574,5 @@ class ExtendibleHashFile:
         with open(self.buckets_file, "r+b") as f:
             f.seek(bucket_id * self.bucket_size)
             f.write(bucket.to_bytes())
-   
-    def get_all_indexed_records(self):
-        """
-        Retorna todos los números de registro almacenados en el índice.
-        """
-        self.load_index()
-        records = []
-        
-        for entry in self.index:
-            bucket_id = entry.bucket_id
-            while bucket_id != -1:
-                bucket = self.read_bucket(bucket_id)
-                records.extend(bucket.records)
-                bucket_id = bucket.next
-                
-        return records
-        
-    # Métodos alias para compatibilidad
-    insert = insert_record
-    delete = delete_record
     
-    # Métodos por posición (compatibilidad con versión anterior)
-    def insert_position(self, position):
-        """Convierte la posición en bytes a número de registro y lo inserta."""
-        record_num = self._get_record_num_from_position(position)
-        return self.insert_record(record_num)
-        
-    def delete_position(self, position):
-        """Convierte la posición en bytes a número de registro y lo elimina."""
-        record_num = self._get_record_num_from_position(position)
-        return self.delete_record(record_num)
+ 

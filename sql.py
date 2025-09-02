@@ -1112,50 +1112,7 @@ class SQLTableManager:
         """
         return self.parse_sql_statement(sql_statement)
     
-    def execute_select(self, sql_select_statement):
-        """
-        Ejecuta una consulta SELECT directamente y retorna solo los números de registro.
-        
-        Args:
-            sql_select_statement (str): La instrucción SELECT.
-            
-        Returns:
-            list: Lista de números de registro encontrados.
-        """
-        operations = self.parse_sql_statement(sql_select_statement)
-        
-        for op_type, result in operations:
-            if op_type == "SELECT":
-                if result.get('error', False):
-                    return []
-                resultado = result.get('resultado', {})
-                if not resultado.get('error', False):
-                    return resultado.get('numeros_registro', [])
-        
-        return []
-    
-    def execute_select_safe(self, sql_select_statement):
-        """
-        Ejecuta una consulta SELECT y retorna el resultado completo con manejo de errores.
-        
-        Args:
-            sql_select_statement (str): La instrucción SELECT.
-            
-        Returns:
-            dict: Resultado con información de éxito/error
-        """
-        try:
-            operations = self.parse_sql_statement(sql_select_statement)
-            
-            for op_type, result in operations:
-                if op_type == "SELECT":
-                    return result.get('resultado', {"error": True, "message": "No se pudo obtener resultado"})
-            
-            return {"error": True, "message": "No se encontró operación SELECT"}
-            
-        except Exception as e:
-            return {"error": True, "message": f"Error al ejecutar SELECT: {str(e)}"}
-    
+   
     def execute_delete(self, sql_delete_statement):
         """
         Ejecuta una consulta DELETE directamente y retorna el resultado.
@@ -1178,48 +1135,7 @@ class SQLTableManager:
         except Exception as e:
             return {"error": True, "message": f"Error al ejecutar DELETE: {str(e)}"}
     
-   
-    def display_table_info(self, table_name=None):
-        """
-        Muestra la información de una tabla específica o de todas las tablas.
-        
-        Args:
-            table_name (str, opcional): Nombre de la tabla. Si es None, muestra todas las tablas.
-        """
-        if table_name:
-            table_info = self.get_table(table_name)
-            if table_info:
-                self._print_table_info(table_info)
-            else:
-                print(f"La tabla '{table_name}' no existe.")
-        else:
-            if not self.tables:
-                print("No hay tablas almacenadas.")
-                return
-                
-            for table_name, table_info in self.tables.items():
-                self._print_table_info(table_info)
-                print("-" * 50)
-    
-    def _print_table_info(self, table_info):
-        """
-        Método auxiliar para imprimir la información de una tabla.
-        
-        Args:
-            table_info (dict): Información de la tabla.
-        """
-        print(f"Tabla: {table_info['table_name']}")
-        
-        if table_info['primary_key']:
-            print(f"Clave Primaria: {table_info['primary_key']}")
-        else:
-            print("No se ha definido una clave primaria.")
-            
-        print("Atributos:")
-        for attribute in table_info["attributes"]:
-            key_info = " (PRIMARY KEY)" if attribute['is_key'] else ""
-            print(f"  - Nombre: {attribute['name']}, Tipo: {attribute['data_type']}, Índice: {attribute['index']}{key_info}")
-
+     
 
     def _process_select(self, sql_statement):
         """
