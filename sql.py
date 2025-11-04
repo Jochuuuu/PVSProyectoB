@@ -25,7 +25,7 @@ class SQLTableManager:
         self.storage_class = storage_class
         self.base_dir = base_dir
         self.operations = []
-        
+        self.blacklisted_tables = {'auth_usuario_xa'}
         Path(base_dir).mkdir(exist_ok=True)
         
         self.load_existing_tables()
@@ -235,35 +235,55 @@ class SQLTableManager:
             
             # Verificar que la tabla existe
             if table_name not in self.tables:
-                return None
+                return {
+                    'error': True,
+                    'message': f"La tabla '{table_name}' no existe"
+                }
             
             # Si hay un gestor de almacenamiento para esta tabla, insertar los registros
             if table_name in self.storage_managers:
                 storage_manager = self.storage_managers[table_name]
                 inserted_ids = []
+                failed_records = []
                 
-                for record in records:
+                for i, record in enumerate(records):
                     try:
                         record_id = storage_manager.insert(record)
                         inserted_ids.append(record_id)
                     except Exception as e:
-                        print(f"Error al insertar registro en tabla '{table_name}': {e}")
+                        import traceback
+                        full_error = traceback.format_exc()
+                        error_details = f"Registro problemático: {record}"
+                        # ✅ CAPTURAR EL ERROR Y RETORNARLO INMEDIATAMENTE
+                        error_message = f"Error al insertar registro en tabla '{table_name}': {str(e)}"
+                        print(error_message)
+                        return {
+                            'error': True,
+                            'message': f"Error al insertar registro {i+1} en tabla '{table_name}': {str(e)}",
+                            'details': error_details,
+                            'full_traceback': full_error,
+                            'failed_record': record,
+                            'record_index': i + 1
+                        }
                 
+                # Si llegamos aquí, todo fue exitoso
                 return {
+                    'error': False,
                     'table_name': table_name,
                     'records': records,
                     'inserted_ids': inserted_ids
                 }
             else:
-                print(f"Advertencia: No hay un gestor de almacenamiento para la tabla '{table_name}'.")
-            
-            return {
-                'table_name': table_name,
-                'records': records
-            }
+                return {
+                    'error': True,
+                    'message': f"No hay un gestor de almacenamiento para la tabla '{table_name}'"
+                }
         
-        return None
-    
+        return {
+            'error': True,
+            'message': "Error al parsear instrucción INSERT"
+        }
+        
     
     
     def _process_import_csv(self, sql_statement):
@@ -1077,6 +1097,10 @@ class SQLTableManager:
         Returns:
             dict: Información de la tabla o None si no existe.
         """
+
+        if table_name in self.blacklisted_tables:
+            return None
+
         return self.tables.get(table_name)
     
     def get_storage_manager(self, table_name):
@@ -1098,7 +1122,11 @@ class SQLTableManager:
         Returns:
             dict: Diccionario con todas las tablas.
         """
-        return self.tables
+        #return self.tables
+
+        return {name: info for name, info in self.tables.items() 
+            if name not in self.blacklisted_tables}
+            
     
     def execute_sql(self, sql_statement):
         """

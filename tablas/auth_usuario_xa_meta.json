@@ -1,0 +1,24 @@
+{
+  "table_name": "auth_usuario_xa",
+  "attributes": [
+    {
+      "name": "id",
+      "data_type": "INT",
+      "is_key": true,
+      "index": "avl"
+    },
+    {
+      "name": "password",
+      "data_type": "VARCHAR[130]",
+      "is_key": false,
+      "index": "hash"
+    },
+    {
+      "name": "user",
+      "data_type": "VARCHAR[30]",
+      "is_key": false,
+      "index": "hash"
+    }
+  ],
+  "primary_key": "id"
+}

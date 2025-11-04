@@ -100,7 +100,6 @@ async def execute_sql(request: SQLRequest):
         }
         
         for op_type, op_result in operations:
-            
             if op_type == "CREATE":
                 result["results"].append({
                     "operation": "CREATE",
@@ -109,20 +108,36 @@ async def execute_sql(request: SQLRequest):
                 })
             
             elif op_type == "INSERT":
-                if isinstance(op_result, dict) and 'records' in op_result:
-                    inserted_count = len(op_result['records'])
-                    
-                    # Serializar los registros insertados para mostrar en la respuesta
-                    inserted_records = serialize_records_data(op_result['records'])
-                    
-                    result["results"].append({
-                        "operation": "INSERT",
-                        "records_inserted": inserted_count,
-                        "inserted_ids": op_result.get('inserted_ids', []),
-                        "inserted_records": inserted_records,
-                        "message": f"{inserted_count} registro(s) insertado(s)"
-                    })
-            
+                if isinstance(op_result, dict):                    
+                    if op_result.get('error', False):
+                        # Caso de error en INSERT
+                        result["results"].append({
+                            "operation": "INSERT",
+                            "error": True,
+                            "message": op_result.get('message', 'Error en INSERT'),
+                            "details": op_result.get('details', ''),
+                            "failed_record": op_result.get('failed_record', {}),
+                            "record_index": op_result.get('record_index', 0)
+                        })
+                    elif 'records' in op_result:
+                        # Caso exitoso
+                        inserted_count = len(op_result['records'])
+                        inserted_records = serialize_records_data(op_result['records'])
+                        
+                        result["results"].append({
+                            "operation": "INSERT",
+                            "records_inserted": inserted_count,
+                            "inserted_ids": op_result.get('inserted_ids', []),
+                            "inserted_records": inserted_records,
+                            "message": f"{inserted_count} registro(s) insertado(s) exitosamente"
+                        })
+                    else:
+                        # Caso donde no hay 'records' ni 'error'
+                        result["results"].append({
+                            "operation": "INSERT",
+                            "error": True,
+                            "message": "Respuesta de INSERT inválida"
+                        })
             elif op_type == "SELECT":
                 if not op_result.get('error', False):
                     resultado = op_result.get('resultado', {})
@@ -258,7 +273,6 @@ async def get_tables():
                 "columns": columns,
                 "indexes": indexes
             }
-        
         return {
             "success": True,
             "tables": tables_info,
@@ -302,6 +316,101 @@ async def get_table_info(table_name: str):
         "table_info": table_info,
         "sample_records": sample_records,
         "total_records": len(storage_manager.get_all_records()) if storage_manager else 0
+    }
+
+
+
+
+
+
+# Necesitarás instalar: pip install bcrypt pyjwt
+from pydantic import BaseModel
+import bcrypt
+import jwt
+from datetime import datetime, timedelta
+
+# Modelos para requests
+class RegisterRequest(BaseModel):
+    user: str
+    password: str
+
+class LoginRequest(BaseModel):
+    user: str
+    password: str
+
+# Configuración JWT (cambiar SECRET_KEY en producción)
+SECRET_KEY = "tu_clave_secreta_super_segura_cambiala"
+ALGORITHM = "HS256"
+
+@app.post("/register")
+async def register(request: RegisterRequest):
+    """Registra un nuevo usuario"""
+    # Verificar que la tabla existe
+    if 'auth_usuario_xa' not in sql_manager.tables:
+        raise HTTPException(status_code=500, detail="Tabla de usuarios no configurada")
+    
+    storage = sql_manager.get_storage_manager('auth_usuario_xa')
+    
+    # Verificar si el usuario ya existe
+    resultado = storage.select(lista_busquedas=[['user', request.user]])
+    if resultado.get('numeros_registro'):
+        raise HTTPException(status_code=400, detail="Usuario ya existe")
+    
+    # Hash de la password
+    hashed = bcrypt.hashpw(request.password.encode('utf-8'), bcrypt.gensalt())
+    
+    # Obtener próximo ID
+    all_records = storage.get_all_records()
+    next_id = len(all_records) + 1
+    
+    # Insertar usuario
+    record = {
+        'id': next_id,
+        'user': request.user,
+        'password': hashed.decode('utf-8')  # Guardar como string
+    }
+    
+    storage.insert(record)
+    
+    return {"success": True, "message": "Usuario registrado exitosamente"}
+
+@app.post("/login")
+async def login(request: LoginRequest):
+    """Inicia sesión y retorna token JWT"""
+    if 'auth_usuario_xa' not in sql_manager.tables:
+        raise HTTPException(status_code=500, detail="Tabla de usuarios no configurada")
+    
+    storage = sql_manager.get_storage_manager('auth_usuario_xa')
+    
+    # Buscar usuario
+    resultado = storage.select(lista_busquedas=[['user', request.user]])
+    
+    if not resultado.get('numeros_registro'):
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    
+    # Obtener el registro del usuario
+    record_num = resultado['numeros_registro'][0]
+    user_data = storage.get(record_num)
+    
+    # Verificar password
+    if not bcrypt.checkpw(request.password.encode('utf-8'), user_data['password'].encode('utf-8')):
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    
+    # Crear token JWT
+    payload = {
+        'user_id': user_data['id'],
+        'username': user_data['user'],
+        'exp': datetime.utcnow() + timedelta(hours=24)  # Expira en 24 horas
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    
+    return {
+        "success": True,
+        "token": token,
+        "user": {
+            "id": user_data['id'],
+            "username": user_data['user']
+        }
     }
 
 if __name__ == "__main__":
