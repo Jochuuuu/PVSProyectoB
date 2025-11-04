@@ -2,7 +2,7 @@
   "name": "bd2-quality-checks",
   "version": "1.0.0",
   "scripts": {
-    "spectral:lint": "spectral lint api/openapi.yaml",
+    "spectral:lint": "spectral lint -r spectral:oas api/openapi.yaml",
     "newman:test": "newman run postman/bd2_collection.json"
   },
   "devDependencies": {
