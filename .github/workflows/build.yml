@@ -42,3 +42,14 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
+
+      - name: Install JMeter
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jmeter
+
+      - name: Run JMeter tests
+        run: |
+          jmeter -n -t tests/jmeter/backend-test.jmx \
+            -l jmeter-results.jtl \
+            -JBASE_URL=${{ secrets.BACKEND_URL }}
