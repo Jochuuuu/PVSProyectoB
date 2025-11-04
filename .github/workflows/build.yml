@@ -61,7 +61,7 @@ jobs:
           export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
-            -JBASE_URL=http://localhost:8000
+            -JBASE_URL=localhost
 
       - name: Show backend logs (if failed)
         if: failure()
