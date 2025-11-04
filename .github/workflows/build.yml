@@ -48,9 +48,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jmeter
 
+      - name: Setup JMeter 5.6.3
+        run: |
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          echo "$(pwd)/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+          
       - name: Run JMeter tests
         run: |
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
-            -JBASE_URL=${{ secrets.BACKEND_URL }} \
-            -Djmeter.save.saveservice.serialize_messages=true
+            -JBASE_URL=${{ secrets.BACKEND_URL }}
