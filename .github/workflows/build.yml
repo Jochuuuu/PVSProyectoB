@@ -64,21 +64,22 @@ jobs:
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
             -JBASE_URL=localhost
+          jmeter -g jmeter-results.jtl -o jmeter-report
 
       - name: Upload JMeter HTML Report
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: jmeter-html-report
           path: jmeter-report/
 
       - name: Upload JMeter Results
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: jmeter-results
           path: jmeter-results.jtl
-          
+
 
       - name: Show backend logs (if failed)
         if: failure()
