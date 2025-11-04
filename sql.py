@@ -5,6 +5,11 @@ import csv
 import json 
 from estructuras.point_class import Point  # Importar la clase Point
 
+SELECT_KEYWORD = "SELECT "
+FROM_KEYWORD = "FROM"
+WHERE_KEYWORD = "WHERE "
+DELETE_KEYWORD = "DELETE "
+
 class SQLTableManager:
     """
     Clase para gestionar tablas SQL, permitiendo analizar y almacenar
@@ -38,7 +43,6 @@ class SQLTableManager:
         if not os.path.exists(self.base_dir):
             return
         
-        tables_found = 0
         
         # Buscar archivos de metadata
         for filename in os.listdir(self.base_dir):
@@ -63,9 +67,8 @@ class SQLTableManager:
                             table_name, table_info, self.base_dir
                         )
                     
-                    tables_found += 1
                     
-                except Exception as e:
+                except Exception:
                     continue
     
     def parse_sql_statement(self, sql_statement):
@@ -116,10 +119,10 @@ class SQLTableManager:
         
         self.operations.extend(processed_operations)
         return processed_operations
-    
     def _clean_sql_statement(self, sql_statement):
         """
         Limpia una instrucción SQL eliminando comentarios y normalizando espacios en blanco.
+        VERSIÓN REFACTORIZADA con menor complejidad cognitiva.
         
         Args:
             sql_statement (str): La instrucción SQL original.
@@ -127,15 +130,103 @@ class SQLTableManager:
         Returns:
             str: La instrucción SQL limpia.
         """
-        # Eliminar comentarios de una línea (--...)
-        sql_no_comments = re.sub(r'--.*?$', '', sql_statement, flags=re.MULTILINE)
+        result = []
+        i = 0
+        length = len(sql_statement)
         
-        # Eliminar comentarios multilínea (/* ... */)
-        sql_no_comments = re.sub(r'/\*.*?\*/', '', sql_no_comments, flags=re.DOTALL)
+        while i < length:
+            char = sql_statement[i]
+            
+            # Procesar strings con comillas
+            if char in ["'", '"']:
+                i = self._process_quoted_string(sql_statement, i, result)
+                continue
+            
+            # Procesar comentarios de línea
+            if self._is_line_comment_start(sql_statement, i):
+                i = self._skip_line_comment(sql_statement, i, result)
+                continue
+            
+            # Procesar comentarios multilínea
+            if self._is_multiline_comment_start(sql_statement, i):
+                i = self._skip_multiline_comment(sql_statement, i)
+                continue
+            
+            # Carácter normal
+            result.append(char)
+            i += 1
         
-        # Normalizar espacios en blanco
-        return ' '.join(sql_no_comments.split())
-    
+        return self._normalize_whitespace(''.join(result))
+
+    def _process_quoted_string(self, sql_statement, start_index, result):
+        """Procesa un string entre comillas y retorna el nuevo índice."""
+        i = start_index
+        quote_char = sql_statement[i]
+        result.append(quote_char)
+        i += 1
+        
+        while i < len(sql_statement):
+            char = sql_statement[i]
+            result.append(char)
+            
+            if char == quote_char:
+                # Verificar escape con doble comilla
+                if self._is_escaped_quote(sql_statement, i, quote_char):
+                    i += 1
+                    result.append(sql_statement[i])
+                else:
+                    break  # Fin del string
+            i += 1
+        
+        return i + 1
+
+    def _is_escaped_quote(self, sql_statement, index, quote_char):
+        """Verifica si la comilla está escapada (doble comilla)."""
+        return (index + 1 < len(sql_statement) and 
+                sql_statement[index + 1] == quote_char)
+
+    def _is_line_comment_start(self, sql_statement, index):
+        """Verifica si en la posición actual inicia un comentario de línea."""
+        return (sql_statement[index] == '-' and 
+                index + 1 < len(sql_statement) and 
+                sql_statement[index + 1] == '-')
+
+    def _skip_line_comment(self, sql_statement, start_index, result):
+        """Salta un comentario de línea y retorna el nuevo índice."""
+        i = start_index
+        # Encontrar el final de la línea
+        while i < len(sql_statement) and sql_statement[i] != '\n':
+            i += 1
+        
+        # Agregar el salto de línea si existe
+        if i < len(sql_statement):
+            result.append('\n')
+            i += 1
+        
+        return i
+
+    def _is_multiline_comment_start(self, sql_statement, index):
+        """Verifica si en la posición actual inicia un comentario multilínea."""
+        return (sql_statement[index] == '/' and 
+                index + 1 < len(sql_statement) and 
+                sql_statement[index + 1] == '*')
+
+    def _skip_multiline_comment(self, sql_statement, start_index):
+        """Salta un comentario multilínea y retorna el nuevo índice."""
+        i = start_index + 2  # Saltar /*
+        
+        # Buscar */
+        while i < len(sql_statement) - 1:
+            if (sql_statement[i] == '*' and 
+                sql_statement[i + 1] == '/'):
+                return i + 2  # Saltar */
+            i += 1
+        
+        return i
+
+    def _normalize_whitespace(self, text):
+        """Normaliza los espacios en blanco."""
+        return ' '.join(text.split())
     def _extract_sql_operations(self, sql_statement):
         """
         Extrae todas las operaciones SQL de un statement.
@@ -235,55 +326,35 @@ class SQLTableManager:
             
             # Verificar que la tabla existe
             if table_name not in self.tables:
-                return {
-                    'error': True,
-                    'message': f"La tabla '{table_name}' no existe"
-                }
+                return None
             
             # Si hay un gestor de almacenamiento para esta tabla, insertar los registros
             if table_name in self.storage_managers:
                 storage_manager = self.storage_managers[table_name]
                 inserted_ids = []
-                failed_records = []
                 
-                for i, record in enumerate(records):
+                for record in records:
                     try:
                         record_id = storage_manager.insert(record)
                         inserted_ids.append(record_id)
                     except Exception as e:
-                        import traceback
-                        full_error = traceback.format_exc()
-                        error_details = f"Registro problemático: {record}"
-                        # ✅ CAPTURAR EL ERROR Y RETORNARLO INMEDIATAMENTE
-                        error_message = f"Error al insertar registro en tabla '{table_name}': {str(e)}"
-                        print(error_message)
-                        return {
-                            'error': True,
-                            'message': f"Error al insertar registro {i+1} en tabla '{table_name}': {str(e)}",
-                            'details': error_details,
-                            'full_traceback': full_error,
-                            'failed_record': record,
-                            'record_index': i + 1
-                        }
+                        print(f"Error al insertar registro en tabla '{table_name}': {e}")
                 
-                # Si llegamos aquí, todo fue exitoso
                 return {
-                    'error': False,
                     'table_name': table_name,
                     'records': records,
                     'inserted_ids': inserted_ids
                 }
             else:
-                return {
-                    'error': True,
-                    'message': f"No hay un gestor de almacenamiento para la tabla '{table_name}'"
-                }
+                print(f"Advertencia: No hay un gestor de almacenamiento para la tabla '{table_name}'.")
+            
+            return {
+                'table_name': table_name,
+                'records': records
+            }
         
-        return {
-            'error': True,
-            'message': "Error al parsear instrucción INSERT"
-        }
-        
+        return None
+    
     
     
     def _process_import_csv(self, sql_statement):
@@ -328,7 +399,7 @@ class SQLTableManager:
                         inserted_ids.append(record_id)
                     else:
                         failed_inserts.append(i)
-                except Exception as e:
+                except Exception:
                     failed_inserts.append(i)
             
             success_count = len(inserted_ids)
@@ -353,7 +424,58 @@ class SQLTableManager:
             }
             print(f"Error: {error_result['message']}")
             return error_result
-    
+        
+
+    def safe_parse_import_csv_statement(self, sql_statement):
+        """Parsea statement IMPORT FROM CSV de manera segura"""
+        sql = sql_statement.strip()
+        if sql.endswith(';'):
+            sql = sql[:-1].strip()
+        
+        sql_upper = sql.upper()
+        
+        # Verificar que empiece con IMPORT FROM CSV
+        if not sql_upper.startswith('IMPORT FROM CSV'):
+            return None, None, None
+        
+        # Buscar la ruta del archivo (entre comillas simples)
+        after_csv = sql[15:].strip()  
+        
+        if not after_csv.startswith("'"):
+            return None, None, None
+        
+        # Encontrar la comilla de cierre
+        quote_end = after_csv.find("'", 1)
+        if quote_end == -1:
+            return None, None, None
+        
+        csv_file_path = after_csv[1:quote_end]
+        
+        # Buscar "INTO"
+        remaining = after_csv[quote_end + 1:].strip()
+        if not remaining.upper().startswith('INTO'):
+            return None, None, None
+        
+        # Extraer nombre de tabla
+        after_into = remaining[4:].strip()  
+        table_name = ""
+        i = 0
+        while i < len(after_into) and (after_into[i].isalnum() or after_into[i] == '_'):
+            table_name += after_into[i]
+            i += 1
+        
+        if not table_name:
+            return None, None, None
+        
+        # Buscar opciones WITH (opcional)
+        remaining_after_table = after_into[len(table_name):].strip()
+        options_str = None
+        
+        if remaining_after_table.upper().startswith('WITH'):
+            options_str = remaining_after_table[4:].strip()   
+        
+        return csv_file_path, table_name, options_str
+        
     def parse_sql_import_csv(self, sql_statement):
         """
         Analiza una instrucción SQL IMPORT FROM CSV y lee el archivo CSV.
@@ -371,23 +493,13 @@ class SQLTableManager:
         """
         
         # Patrón para IMPORT FROM CSV
-        import_pattern = re.compile(
-            r"IMPORT\s+FROM\s+CSV\s+'([^']+)'\s+INTO\s+(\w+)(?:\s+WITH\s+(.+?))?(?:\s*;)?$",
-            re.IGNORECASE
-        )
-        
-        match = import_pattern.match(sql_statement.strip())
-        if not match:
+        csv_file_path, table_name, options_str = self.safe_parse_import_csv_statement(sql_statement)
+        if not table_name:
             return {
                 'error': True,
                 'message': "Formato de IMPORT FROM CSV no válido. Use: IMPORT FROM CSV 'archivo.csv' INTO tabla;"
             }
-        
-        csv_file_path = match.group(1)
-        table_name = match.group(2)
-        options_str = match.group(3)
-        
-        
+                
         # Verificar que la tabla existe
         if table_name not in self.tables:
             return {
@@ -435,7 +547,7 @@ class SQLTableManager:
                     dialect = sniffer.sniff(sample, delimiters=delimiter + ';\t|')
                     if hasattr(dialect, 'delimiter'):
                         delimiter = dialect.delimiter
-                except:
+                except Exception:
                     pass  # Usar delimiter especificado
                 
                 
@@ -626,7 +738,119 @@ class SQLTableManager:
         else:
             # Para VARCHAR, CHAR, etc.
             return " "  # Un espacio como solicitado
-    
+        
+
+    def safe_parse_insert_statement(self, sql_statement):
+        """Parsea statement INSERT de manera segura"""
+        sql_upper = sql_statement.upper()
+        
+        # Buscar "INSERT INTO"
+        insert_pos = sql_upper.find('INSERT INTO')
+        if insert_pos == -1:
+            return None, None, None
+        
+        # Buscar nombre de tabla después de "INSERT INTO"
+        after_insert = sql_statement[insert_pos + 11:].strip()
+        
+        # Encontrar el nombre de la tabla (primera palabra)
+        table_name = ""
+        i = 0
+        while i < len(after_insert) and after_insert[i].isalnum() or after_insert[i] == '_':
+            table_name += after_insert[i]
+            i += 1
+        
+        if not table_name:
+            return None, None, None
+        
+        # Buscar paréntesis de columnas (opcional)
+        remaining = after_insert[len(table_name):].strip()
+        columns_str = None
+        
+        if remaining.startswith('('):
+            # Extraer columnas entre paréntesis
+            paren_end = remaining.find(')')
+            if paren_end != -1:
+                columns_str = remaining[1:paren_end].strip()
+                remaining = remaining[paren_end + 1:].strip()
+        
+        # Buscar "VALUES"
+        values_pos = remaining.upper().find('VALUES')
+        if values_pos == -1:
+            return None, None, None
+        
+        values_part = remaining[values_pos + 6:].strip()
+        
+        return table_name, columns_str, values_part
+
+    def safe_extract_insert_values(self, values_part):
+        """Extrae valores de INSERT de manera segura con baja complejidad cognitiva"""
+        value_sets = []
+        i = 0
+        
+        while i < len(values_part):                    # +1 (while)
+            i = self._skip_to_opening_paren(values_part, i)
+            
+            if i >= len(values_part):                  # +1 (if) +1 (nested)
+                break
+            
+            content = self._extract_paren_content(values_part, i)
+            if content is not None:                    # +1 (if) +1 (nested)
+                value_sets.append(content)
+            
+            i = self._advance_past_closing_paren(values_part, i)
+        
+        return value_sets
+
+    def _skip_to_opening_paren(self, text, start_pos):
+        """Busca el siguiente paréntesis de apertura"""
+        while start_pos < len(text) and text[start_pos] != '(':  # +1 (while)
+            start_pos += 1
+        return start_pos
+
+    def _extract_paren_content(self, text, start_pos):
+        """Extrae contenido entre paréntesis balanceados"""
+        # Retorno temprano para casos edge
+        if start_pos >= len(text) or text[start_pos] != '(':     # +1 (if)
+            return None
+        
+        paren_count = 0
+        current_pos = start_pos
+        
+        while current_pos < len(text):                           # +1 (while)
+            char = text[current_pos]
+            
+            if char == '(':                                      # +1 (if) +1 (nested)
+                paren_count += 1
+            elif char == ')':                                    # +1 (elif) +1 (nested)
+                paren_count -= 1
+                if paren_count == 0:                             # +1 (if) +2 (nested)
+                    return text[start_pos + 1:current_pos]
+            
+            current_pos += 1
+        
+        return None  # Paréntesis no balanceados
+
+    def _advance_past_closing_paren(self, text, start_pos):
+        """Avanza hasta después del paréntesis de cierre"""
+        # Retorno temprano
+        if start_pos >= len(text):                               # +1 (if)
+            return start_pos
+        
+        paren_count = 0
+        current_pos = start_pos
+        
+        while current_pos < len(text):                           # +1 (while)
+            if text[current_pos] == '(':                         # +1 (if) +1 (nested)
+                paren_count += 1
+            elif text[current_pos] == ')':                       # +1 (elif) +1 (nested)
+                paren_count -= 1
+                if paren_count == 0:                             # +1 (if) +2 (nested)
+                    return current_pos + 1
+            current_pos += 1
+        
+        return current_pos
+
+        
     def parse_sql_create_table(self, sql_statement):
         """
         Analiza una instrucción SQL CREATE TABLE para extraer información sobre la tabla,
@@ -641,7 +865,7 @@ class SQLTableManager:
         # Expresión regular para encontrar el nombre de la tabla
         table_name_pattern = re.compile(r"CREATE\s+TABLE\s+([A-Za-z_\d]+)\s*\(", re.IGNORECASE)
         
-        # Expresión regular mejorada para capturar atributos con sus tipos, claves e índices
+        # Expresión regular mejorada para captuxrar atributos con sus tipos, claves e índices
         attribute_pattern = re.compile(
             r"\s*(\w+)\s+([A-Za-z_\d\[\]]+)"        # Nombre y tipo de dato (como VARCHAR[50] o POINT)
             r"(?:\s+(PRIMARY\s+KEY|KEY))?"          # PRIMARY KEY o KEY
@@ -659,11 +883,10 @@ class SQLTableManager:
         table_name = table_name_match.group(1)
         
         # Extraer el contenido entre paréntesis
-        content_match = re.search(r'\(\s*(.*?)\s*\)', sql_statement, re.DOTALL)
-        if not content_match:
+        content = self.safe_extract_parentheses_content(sql_statement)
+
+        if content is None:
             return None
-            
-        content = content_match.group(1)
         
         # Buscar los atributos
         attributes = []
@@ -712,16 +935,10 @@ class SQLTableManager:
             dict: Un diccionario con la información extraída, o None si no es válida.
         """
         # Patrones para analizar la sentencia INSERT
-        table_pattern = re.compile(r"INSERT\s+INTO\s+(\w+)\s*(?:\((.*?)\))?\s*VALUES\s*", re.IGNORECASE | re.DOTALL)
-        values_pattern = re.compile(r"VALUES\s*\((.*?)\)(?:\s*,\s*\((.*?)\))*", re.IGNORECASE | re.DOTALL)
-        
-        # Buscar nombre de la tabla y columnas (opcional)
-        table_match = table_pattern.search(sql_statement)
-        if not table_match:
+        # Parsear de manera segura
+        table_name, columns_str, values_part = self.safe_parse_insert_statement(sql_statement)
+        if not table_name:
             return None
-        
-        table_name = table_match.group(1)
-        columns_str = table_match.group(2)
         
         # Si las columnas no están especificadas, usar todas las columnas de la tabla
         columns = []
@@ -733,15 +950,13 @@ class SQLTableManager:
                 columns = [attr['name'] for attr in self.tables[table_name]['attributes']]
         
         # Buscar los valores a insertar
-        values_match = values_pattern.search(sql_statement)
-        if not values_match:
+        value_sets_str = self.safe_extract_insert_values(values_part)
+        if not value_sets_str:
             return None
         
         # Extraer todos los conjuntos de valores
-        value_sets = []
-        
+         
         # Primero, extraer todo lo que sigue a VALUES
-        values_part = sql_statement[values_match.start():]
         
         # Función auxiliar para dividir por comas teniendo en cuenta paréntesis y strings
         def split_values(values_str):
@@ -798,9 +1013,102 @@ class SQLTableManager:
             'columns': columns,
             'records': records
         }
+  
+
+    def clean_leading_trailing_ands(self,clause):
+        """Limpia ANDs al inicio y final de manera segura"""
+        clause = clause.strip()
+        
+        # Remover AND al inicio
+        if clause.upper().startswith('AND '):
+            clause = clause[4:].strip()
+        
+        # Remover AND al final
+        if clause.upper().endswith(' AND'):
+            clause = clause[:-4].strip()
+        
+        return clause
+
+    def clean_duplicate_ands(self,clause):
+        """Limpia ANDs duplicados de manera segura sin regex vulnerable"""
+        # Dividir por espacios y reconstruir
+        words = clause.split()
+        result = []
+        prev_was_and = False
+        
+        for word in words:
+            word_upper = word.upper()
+            if word_upper == 'AND':
+                if not prev_was_and:
+                    result.append(word)
+                    prev_was_and = True
+            else:
+                result.append(word)
+                prev_was_and = False
+        
+        return ' '.join(result)
     
+    def safe_split_and_conditions(self, clause):
+        """Divide condiciones por AND de manera segura"""
+        if not clause:
+            return []
+        
+        # Convertir a mayúsculas para búsqueda
+        clause_upper = clause.upper()
+        parts = []
+        current_part = ""
+        i = 0
+        
+        while i < len(clause):
+            # Buscar " AND " (con espacios)
+            if (i <= len(clause) - 5 and 
+                clause_upper[i:i+5] == ' AND ' and
+                (i == 0 or clause[i-1] == ' ') and
+                (i+5 >= len(clause) or clause[i+5] == ' ')):
+                
+                # Encontramos un AND, guardar parte actual
+                if current_part.strip():
+                    parts.append(current_part.strip())
+                current_part = ""
+                i += 5  # Saltar " AND "
+            else:
+                current_part += clause[i]
+                i += 1
+        
+        # Agregar última parte
+        if current_part.strip():
+            parts.append(current_part.strip())
+        
+        return parts
     
-            
+
+    def safe_extract_parentheses_content(self, sql_statement):
+        """Extrae contenido entre paréntesis de manera segura"""
+        # Buscar el primer paréntesis de apertura
+        start_idx = sql_statement.find('(')
+        if start_idx == -1:
+            return None
+        
+        # Encontrar el paréntesis de cierre balanceado
+        paren_count = 0
+        end_idx = start_idx
+        
+        for i in range(start_idx, len(sql_statement)):
+            if sql_statement[i] == '(':
+                paren_count += 1
+            elif sql_statement[i] == ')':
+                paren_count -= 1
+                if paren_count == 0:
+                    end_idx = i
+                    break
+        
+        if paren_count != 0:
+            return None  # Paréntesis no balanceados
+        
+        # Extraer y limpiar el contenido
+        content = sql_statement[start_idx + 1:end_idx].strip()
+        return content
+
     def _parse_where_with_ranges(self, where_clause, table_name):
         """
         Analiza una cláusula WHERE y la separa en búsquedas exactas y por rango.
@@ -875,14 +1183,13 @@ class SQLTableManager:
                 remaining_clause = remaining_clause[:match.start()] + remaining_clause[match.end():]
         
         # 3. Limpiar remaining_clause
-        remaining_clause = re.sub(r'\s+AND\s+AND\s+', ' AND ', remaining_clause, flags=re.IGNORECASE)
-        remaining_clause = re.sub(r'^\s*AND\s+', '', remaining_clause, flags=re.IGNORECASE)
-        remaining_clause = re.sub(r'\s+AND\s*$', '', remaining_clause, flags=re.IGNORECASE)
+        remaining_clause  = self.clean_duplicate_ands(remaining_clause)
+        remaining_clause = self.clean_leading_trailing_ands(remaining_clause)
         remaining_clause = remaining_clause.strip()
         
         # 4. Procesar condiciones de igualdad restantes
         if remaining_clause:
-            and_parts = re.split(r'\s+AND\s+', remaining_clause, flags=re.IGNORECASE)
+            and_parts = self.safe_split_and_conditions(remaining_clause)
             
             for part in and_parts:
                 part = part.strip()
@@ -1100,7 +1407,7 @@ class SQLTableManager:
 
         if table_name in self.blacklisted_tables:
             return None
-
+            
         return self.tables.get(table_name)
     
     def get_storage_manager(self, table_name):
@@ -1122,11 +1429,10 @@ class SQLTableManager:
         Returns:
             dict: Diccionario con todas las tablas.
         """
-        #return self.tables
 
+        
         return {name: info for name, info in self.tables.items() 
             if name not in self.blacklisted_tables}
-            
     
     def execute_sql(self, sql_statement):
         """
@@ -1219,7 +1525,168 @@ class SQLTableManager:
             }
             print(f"Error: {error_result['message']}")
             return error_result
+        
 
+    
+
+    
+    def _safe_parse_basic_delete(self, sql_statement: str):
+        """
+        Parser lineal y seguro para:
+        DELETE FROM <tabla> [WHERE <condiciones>][;]
+        Respeta comillas y paréntesis para no romper funciones/strings en WHERE.
+        Retorna: (table_name, where_clause|None)
+        """
+        # 1) Normalización (sin regex)
+        s = sql_statement.strip().rstrip(';')
+        up = s.upper()
+
+        # 2) Validación del prefijo DELETE
+        if not up.startswith(DELETE_KEYWORD):
+            return None, None
+
+        # 3) Buscar FROM fuera de comillas/paréntesis
+        from_pos = self._find_keyword_outside_quotes_parens(s, FROM_KEYWORD, len(DELETE_KEYWORD))
+        if from_pos == -1:
+            return None, None
+
+        # 4) Extraer nombre de tabla
+        after_from = s[from_pos + len(FROM_KEYWORD):].lstrip()
+        table_name = self._extract_table_name(after_from)
+        if not table_name:
+            return None, None
+
+        # 5) Restante tras la tabla
+        rest = after_from[len(table_name):].lstrip()
+        if not rest:
+            # No hay WHERE → DELETE FROM <tabla>
+            return table_name, None
+
+        # 6) Si hay algo, debe ser WHERE (delimitado) al inicio
+        where_pos = self._find_keyword_outside_quotes_parens(rest, WHERE_KEYWORD, 0)
+        if where_pos == 0:
+            where_clause = rest[len(WHERE_KEYWORD):].strip()
+            return table_name, (where_clause if where_clause else None)
+
+        # Si aparece WHERE más adelante o hay basura antes, es inválido
+        return None, None
+    def _safe_parse_basic_select(self, sql_statement: str):
+        """
+        Parser lineal y seguro para: SELECT <cols> FROM <tabla> [WHERE <cláusula>][;]
+        Respeta comillas y paréntesis para no romper con funciones/strings.
+        """
+        s = sql_statement.strip().rstrip(';')
+        up = s.upper()
+        
+        if not up.startswith(SELECT_KEYWORD):
+            return None, None, None
+        
+        # Encontrar la posición de FROM
+        from_pos = self._find_keyword_outside_quotes_parens(s, FROM_KEYWORD, len(SELECT_KEYWORD))
+        if from_pos == -1:
+            return None, None, None
+        
+        # Extraer las partes principales
+        columns_part = s[len(SELECT_KEYWORD):from_pos].strip()
+        if not columns_part:
+            return None, None, None
+        
+        after_from = s[from_pos + len(FROM_KEYWORD):].strip()
+        table_name = self._extract_table_name(after_from)
+        if not table_name:
+            return None, None, None
+        
+        # Extraer cláusula WHERE si existe
+        rest = after_from[len(table_name):].strip()
+        where_clause = self._extract_where_clause(rest)
+        
+        return columns_part, table_name, where_clause
+
+    def _find_keyword_outside_quotes_parens(self, src: str, keyword: str, start: int = 0) -> int:
+        """Encuentra una palabra clave fuera de comillas y paréntesis."""
+        upsrc = src.upper()
+        keyword_len = len(keyword)
+        i = start
+        
+        while i <= len(src) - keyword_len:
+            # Saltar contenido entre comillas
+            if src[i] in ("'", '"'):
+                i = self._skip_quoted_content(src, i)
+                continue
+            
+            # Saltar contenido entre paréntesis
+            if src[i] == '(':
+                i = self._skip_parentheses_content(src, i)
+                continue
+            
+            # Verificar si encontramos la palabra clave
+            if self._is_keyword_match(upsrc, keyword, i, keyword_len):
+                return i
+            
+            i += 1
+        
+        return -1
+
+    def _skip_quoted_content(self, src: str, start: int) -> int:
+        """Salta el contenido entre comillas y retorna la posición después del cierre."""
+        quote_char = src[start]
+        i = start + 1
+        
+        while i < len(src):
+            if src[i] == quote_char:
+                return i + 1
+            i += 1
+        
+        return len(src)  # Si no se encuentra el cierre, ir al final
+
+    def _skip_parentheses_content(self, src: str, start: int) -> int:
+        """Salta el contenido entre paréntesis balanceados."""
+        depth = 1
+        i = start + 1
+        
+        while i < len(src) and depth > 0:
+            if src[i] == '(':
+                depth += 1
+            elif src[i] == ')':
+                depth -= 1
+            elif src[i] in ("'", '"'):
+                i = self._skip_quoted_content(src, i)
+                continue
+            i += 1
+        
+        return i
+
+    def _is_keyword_match(self, upsrc: str, keyword: str, pos: int, keyword_len: int) -> bool:
+        """Verifica si hay una coincidencia de palabra clave en la posición dada."""
+        if upsrc[pos:pos + keyword_len] != keyword:
+            return False
+        
+        # Verificar límites de palabra (espacios o bordes)
+        left_boundary = pos == 0 or upsrc[pos - 1].isspace()
+        right_boundary = (pos + keyword_len == len(upsrc)) or upsrc[pos + keyword_len].isspace()
+        
+        return left_boundary and right_boundary
+
+    def _extract_table_name(self, after_from: str) -> str:
+        """Extrae el nombre de la tabla del texto después de FROM."""
+        table_name = ''
+        i = 0
+        
+        while i < len(after_from) and self._is_valid_table_char(after_from[i]):
+            table_name += after_from[i]
+            i += 1
+        
+        return table_name
+
+    def _is_valid_table_char(self, char: str) -> bool:
+        """Verifica si un carácter es válido para un nombre de tabla."""
+        return char.isalnum() or char == '_'
+
+    def _extract_where_clause(self, rest: str):
+        """Extrae la cláusula WHERE si existe."""
+        if rest and rest.upper().startswith(WHERE_KEYWORD):
+            return rest[len(WHERE_KEYWORD):].strip()
+        return None
     def parse_sql_select(self, sql_statement):
         """
         Analiza una instrucción SQL SELECT y extrae las condiciones de búsqueda.
@@ -1232,21 +1699,13 @@ class SQLTableManager:
         - SELECT * FROM tabla WHERE KNN(attr, center_point, k)         
         """
         # Patrón para SELECT básico
-        select_pattern = re.compile(
-            r"SELECT\s+(.+?)\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?(?:\s*;)?$", 
-            re.IGNORECASE | re.DOTALL
-        )
-        
-        match = select_pattern.match(sql_statement.strip())
-        if not match:
+        columns_str, table_name, where_clause = self._safe_parse_basic_select(sql_statement)
+        if not columns_str or not table_name:
             return {
                 "error": True,
                 "message": "Formato de SELECT no válido"
             }
-        
-        columns_str = match.group(1).strip()
-        table_name = match.group(2)
-        where_clause = match.group(3)
+
         
         # Verificar que la tabla existe
         if table_name not in self.tables:
@@ -1337,7 +1796,6 @@ class SQLTableManager:
             
             # Extraer contenido entre paréntesis
             content = clause[paren_start + 1:end_idx]
-            full_function = clause[start_idx:end_idx + 1]
             
             
             # PARSING MANUAL SUPER SIMPLE
@@ -1541,20 +1999,13 @@ class SQLTableManager:
         VERSIÓN ACTUALIZADA con soporte para funciones espaciales.
         """
         # Patrón para DELETE básico
-        delete_pattern = re.compile(
-            r"DELETE\s+FROM\s+(\w+)(?:\s+WHERE\s+(.+?))?(?:\s*;)?$", 
-            re.IGNORECASE | re.DOTALL
-        )
-        
-        match = delete_pattern.match(sql_statement.strip())
-        if not match:
+        table_name, where_clause = self._safe_parse_basic_delete(sql_statement)
+        if not table_name:
             return {
                 "error": True,
                 "message": "Formato de DELETE no válido. Use: DELETE FROM tabla [WHERE condiciones]"
             }
-        
-        table_name = match.group(1)
-        where_clause = match.group(2)
+
         
         # Verificar que la tabla existe
         if table_name not in self.tables:
