@@ -52,4 +52,5 @@ jobs:
         run: |
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
-            -JBASE_URL=${{ secrets.BACKEND_URL }}
+            -JBASE_URL=${{ secrets.BACKEND_URL }} \
+            -Djmeter.save.saveservice.serialize_messages=true
