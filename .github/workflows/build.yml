@@ -45,7 +45,7 @@ jobs:
       - name: Start FastAPI backend
         run: |
           pip install fastapi uvicorn bcrypt pyjwt
-          nohup python app.py > backend.log 2>&1 &
+          nohup python main.py > backend.log 2>&1 &
           sleep 10
           curl http://localhost:8000/ || echo "Backend not ready yet"
 
