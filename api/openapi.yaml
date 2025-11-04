@@ -1,0 +1,27 @@
+openapi: 3.0.0
+info:
+  title: BD2 API
+  version: 1.0.0
+  description: API para gestionar consultas y almacenamiento de datos en BD2
+servers:
+  - url: http://localhost:8000
+paths:
+  /login:
+    post:
+      summary: Inicio de sesión en BD2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Inicio de sesión exitoso
+        '401':
+          description: Credenciales inválidas

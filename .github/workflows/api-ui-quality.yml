@@ -1,0 +1,54 @@
+name: API & UI Quality (Spectral, Newman, Selenium)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Node deps (Spectral & Newman)
+        run: npm install
+
+      - name: Install Python deps (Selenium, etc.)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start FastAPI backend
+        run: |
+          nohup uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+          sleep 15
+
+      # 1) Spectral valida el OpenAPI
+      - name: Run Spectral (OpenAPI lint)
+        run: npm run spectral:lint
+
+      # 2) Newman ejecuta la colección Postman
+      - name: Run Newman tests
+        run: npm run newman:test
+
+      # 3) Selenium prueba el login UI
+      - name: Run Selenium UI tests
+        run: pytest tests/test_login_selenium.py
+
+      - name: Show backend logs (if failed)
+        if: failure()
+        run: cat backend.log
