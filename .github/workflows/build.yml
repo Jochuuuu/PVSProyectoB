@@ -49,6 +49,8 @@ jobs:
           sleep 15
           curl -v http://localhost:8000/ || cat backend.log
 
+        
+        
       - name: Setup JMeter 5.6.3
         run: |
           wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
@@ -62,6 +64,21 @@ jobs:
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
             -JBASE_URL=localhost
+
+      - name: Upload JMeter HTML Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: jmeter-html-report
+          path: jmeter-report/
+
+      - name: Upload JMeter Results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: jmeter-results
+          path: jmeter-results.jtl
+          
 
       - name: Show backend logs (if failed)
         if: failure()
