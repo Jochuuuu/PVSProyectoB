@@ -35,7 +35,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # Opcional: falla si no pasa Quality Gate
       - name: SonarQube Quality Gate Check
         uses: SonarSource/sonarqube-quality-gate-action@v1
         env:
@@ -43,19 +42,16 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
-      - name: Install JMeter
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jmeter
-
       - name: Setup JMeter 5.6.3
         run: |
           wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
           tar -xzf apache-jmeter-5.6.3.tgz
-          echo "$(pwd)/apache-jmeter-5.6.3/bin" >> $GITHUB_PATH
+          export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
+          jmeter --version
           
       - name: Run JMeter tests
         run: |
+          export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
           jmeter -n -t tests/jmeter/backend-test.jmx \
             -l jmeter-results.jtl \
             -JBASE_URL=${{ secrets.BACKEND_URL }}
