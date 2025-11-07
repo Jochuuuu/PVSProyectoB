@@ -44,6 +44,10 @@ jobs:
       # 2) Newman ejecuta la colección Postman
       - name: Run Newman tests
         run: npm run newman:test
+      
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@v1
+
 
       # 3) Selenium prueba el login UI
       - name: Run Selenium UI tests

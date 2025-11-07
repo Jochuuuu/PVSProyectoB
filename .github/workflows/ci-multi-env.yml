@@ -1,0 +1,24 @@
+name: CI Multi Entornos (dev / qa / prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Selecciona entorno"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+
+jobs:
+  ci_multi_env:
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+
+    steps:
+      - name: Mostrar entorno
+        run: echo "Ejecutando en entorno: $ENVIRONMENT"
