@@ -1,5 +1,3 @@
-name: Build and Analyze - Multi Environment
-
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +15,11 @@ on:
       - main
       - develop
       - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
 env:
   ENVIRONMENT: ${{ 
     github.ref == 'refs/heads/main' && 'prod' || 
