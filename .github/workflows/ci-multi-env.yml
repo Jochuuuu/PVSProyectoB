@@ -16,7 +16,6 @@ on:
 jobs:
   ci_multi_env:
     runs-on: ubuntu-latest
-
     env:
       ENVIRONMENT: ${{ inputs.environment }}
 
