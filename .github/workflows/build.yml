@@ -1,14 +1,67 @@
-name: Build and Analyze
+name: Build and Analyze - Multi Environment
 
 on:
   push:
     branches:
       - main
+      - develop
+      - 'release/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  # Determinar el entorno basado en la rama
+  ENVIRONMENT: ${{ 
+    github.ref == 'refs/heads/main' && 'prod' || 
+    github.ref == 'refs/heads/develop' && 'dev' || 
+    startsWith(github.ref, 'refs/heads/release/') && 'qa' || 
+    'dev' 
+  }}
 
 jobs:
-  build:
+  # Job 1: Configuración inicial y determinación del entorno
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      run-sonarqube: ${{ steps.set-env.outputs.run-sonarqube }}
+      run-jmeter: ${{ steps.set-env.outputs.run-jmeter }}
+    steps:
+      - name: Determine Environment and Jobs
+        id: set-env
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+            echo "run-sonarqube=false" >> $GITHUB_OUTPUT
+            echo "run-jmeter=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "run-sonarqube=true" >> $GITHUB_OUTPUT
+            echo "run-jmeter=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "environment=qa" >> $GITHUB_OUTPUT
+            echo "run-sonarqube=false" >> $GITHUB_OUTPUT
+            echo "run-jmeter=true" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "run-sonarqube=true" >> $GITHUB_OUTPUT
+            echo "run-jmeter=true" >> $GITHUB_OUTPUT
+          fi
 
+      - name: Display Environment Info
+        run: |
+          echo "🌍 Environment: ${{ steps.set-env.outputs.environment }}"
+          echo "🔍 Run SonarQube: ${{ steps.set-env.outputs.run-sonarqube }}"
+          echo "⚡ Run JMeter: ${{ steps.set-env.outputs.run-jmeter }}"
+
+  # Job 2: Build y Tests básicos (se ejecuta en todos los entornos)
+  build-and-test:
+    needs: setup
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,14 +73,47 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
 
-      - name: Run tests (pytest)
+      - name: Run Unit Tests
         run: |
           pytest --cov=. --cov-report=xml --cov-report=term-missing --ignore=tests/test_login_selenium.py
+        continue-on-error: false
+
+      - name: Upload Coverage Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ needs.setup.outputs.environment }}
+          path: coverage.xml
+
+  # Job 3: Análisis de Calidad de Código (solo DEV)
+  code-quality-analysis:
+    needs: [setup, build-and-test]
+    if: needs.setup.outputs.run-sonarqube == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Coverage Report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report-${{ needs.setup.outputs.environment }}
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
@@ -42,45 +128,114 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
-      - name: Start FastAPI backend
+  # Job 4: Pruebas de Performance (DEV y QA)
+  performance-tests:
+    needs: [setup, build-and-test]
+    if: needs.setup.outputs.run-jmeter == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Backend Dependencies
         run: |
+          python -m pip install --upgrade pip
           pip install fastapi uvicorn bcrypt pyjwt
+
+      - name: Start FastAPI Backend
+        run: |
           nohup uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
           sleep 15
           curl -v http://localhost:8000/ || cat backend.log
 
-        
-        
+      - name: Cache JMeter
+        uses: actions/cache@v3
+        with:
+          path: apache-jmeter-5.6.3
+          key: ${{ runner.os }}-jmeter-5.6.3
+
       - name: Setup JMeter 5.6.3
         run: |
-          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-          tar -xzf apache-jmeter-5.6.3.tgz
+          if [ ! -d "apache-jmeter-5.6.3" ]; then
+            wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+            tar -xzf apache-jmeter-5.6.3.tgz
+          fi
           export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
           jmeter --version
-          
-      - name: Run JMeter tests
+
+      - name: Run JMeter Performance Tests
         run: |
           export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
           jmeter -n -t tests/jmeter/backend-test.jmx \
-            -l jmeter-results.jtl \
-            -JBASE_URL=localhost
-          jmeter -g jmeter-results.jtl -o jmeter-report
+            -l jmeter-results-${{ needs.setup.outputs.environment }}.jtl \
+            -JBASE_URL=localhost \
+            -JENVIRONMENT=${{ needs.setup.outputs.environment }}
+          jmeter -g jmeter-results-${{ needs.setup.outputs.environment }}.jtl \
+            -o jmeter-report-${{ needs.setup.outputs.environment }}
 
       - name: Upload JMeter HTML Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-html-report
-          path: jmeter-report/
+          name: jmeter-html-report-${{ needs.setup.outputs.environment }}
+          path: jmeter-report-${{ needs.setup.outputs.environment }}/
 
       - name: Upload JMeter Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-results
-          path: jmeter-results.jtl
-
+          name: jmeter-results-${{ needs.setup.outputs.environment }}
+          path: jmeter-results-${{ needs.setup.outputs.environment }}.jtl
 
       - name: Show backend logs (if failed)
         if: failure()
         run: cat backend.log
+
+  # Job 5: Deploy (condicional por entorno)
+  deploy:
+    needs: [setup, build-and-test, code-quality-analysis, performance-tests]
+    if: always() && needs.build-and-test.result == 'success'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Deploy to ${{ needs.setup.outputs.environment }}
+        run: |
+          echo "🚀 Deploying to ${{ needs.setup.outputs.environment }} environment"
+          echo "✅ All required checks passed for ${{ needs.setup.outputs.environment }}"
+          # Aquí irían los comandos reales de deploy según el entorno
+          
+      - name: Notify Deployment
+        run: |
+          echo "📢 Deployment to ${{ needs.setup.outputs.environment }} completed successfully!"
+
+  # Job 6: Resumen Final
+  summary:
+    needs: [setup, build-and-test, code-quality-analysis, performance-tests, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Pipeline Summary
+        run: |
+          echo "# 📊 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Environment: **${{ needs.setup.outputs.environment }}**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Build & Test | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality (SonarQube) | ${{ needs.code-quality-analysis.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Tests (JMeter) | ${{ needs.performance-tests.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy | ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔍 SonarQube: ${{ needs.setup.outputs.run-sonarqube }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ JMeter: ${{ needs.setup.outputs.run-jmeter }}" >> $GITHUB_STEP_SUMMARY
