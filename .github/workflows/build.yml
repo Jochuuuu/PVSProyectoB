@@ -18,7 +18,6 @@ on:
       - develop
       - 'release/**'
 env:
-  # Determinar el entorno basado en la rama
   ENVIRONMENT: ${{ 
     github.ref == 'refs/heads/main' && 'prod' || 
     github.ref == 'refs/heads/develop' && 'dev' || 
