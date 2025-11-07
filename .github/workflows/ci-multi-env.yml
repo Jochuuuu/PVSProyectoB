@@ -16,9 +16,86 @@ on:
 jobs:
   ci_multi_env:
     runs-on: ubuntu-latest
+
     env:
       ENVIRONMENT: ${{ inputs.environment }}
 
     steps:
       - name: Mostrar entorno
         run: echo "Ejecutando en entorno: $ENVIRONMENT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+
+      # Levantar backend solo en dev y qa (para que JMeter tenga API)
+      - name: Start FastAPI backend (dev y qa)
+        if: env.ENVIRONMENT == 'dev' || env.ENVIRONMENT == 'qa'
+        run: |
+          pip install fastapi uvicorn bcrypt pyjwt
+          nohup uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+          sleep 15
+          curl -v http://localhost:8000/ || cat backend.log
+
+      # SONARQUBE: SOLO DEV
+      - name: SonarQube Scan (solo dev)
+        if: env.ENVIRONMENT == 'dev'
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: SonarQube Quality Gate Check (solo dev)
+        if: env.ENVIRONMENT == 'dev'
+        uses: SonarSource/sonarqube-quality-gate-action@v1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        timeout-minutes: 5
+
+      # JMETER: DEV y QA
+      - name: Setup JMeter (dev y qa)
+        if: env.ENVIRONMENT == 'dev' || env.ENVIRONMENT == 'qa'
+        run: |
+          wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+          export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
+          jmeter --version
+
+      - name: Run JMeter tests (dev y qa)
+        if: env.ENVIRONMENT == 'dev' || env.ENVIRONMENT == 'qa'
+        run: |
+          export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
+          jmeter -n -t tests/jmeter/backend-test.jmx \
+            -l jmeter-results.jtl \
+            -JBASE_URL=localhost
+          jmeter -g jmeter-results.jtl -o jmeter-report
+
+      - name: Upload JMeter HTML Report (dev y qa)
+        if: (env.ENVIRONMENT == 'dev' || env.ENVIRONMENT == 'qa') && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-html-report-${{ env.ENVIRONMENT }}
+          path: jmeter-report/
+
+      - name: Upload JMeter Results (dev y qa)
+        if: (env.ENVIRONMENT == 'dev' || env.ENVIRONMENT == 'qa') && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results-${{ env.ENVIRONMENT }}
+          path: jmeter-results.jtl
+
+      - name: Show backend logs (if failed)
+        if: failure()
+        run: cat backend.log
