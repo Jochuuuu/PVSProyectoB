@@ -1,16 +1,22 @@
 name: Build and Analyze - Multi Environment
 
 on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Selecciona entorno'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
   push:
     branches:
       - main
       - develop
       - 'release/**'
-  pull_request:
-    branches:
-      - main
-      - develop
-
 env:
   # Determinar el entorno basado en la rama
   ENVIRONMENT: ${{ 
