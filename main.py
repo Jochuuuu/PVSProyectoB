@@ -287,6 +287,11 @@ async def get_tables():
             "total_tables": 0
         }
 
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+    
 @app.get("/tables/{table_name}")
 async def get_table_info(table_name: str):
     """

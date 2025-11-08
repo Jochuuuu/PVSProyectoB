@@ -3,7 +3,7 @@ import os
 import json
 import math
 import pickle
-from rtree import index   
+from rtree import index  
 from estructuras.point_class import Point
 
 class RTreeFile:

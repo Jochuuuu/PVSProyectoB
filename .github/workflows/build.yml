@@ -140,93 +140,15 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
-  deploy-backend:
-    name: Deploy Backend
-    needs: [setup, build-and-test]
-    runs-on: ubuntu-latest
-    env:
-      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Backend Dependencies
+      - name: Start FastAPI backend
         run: |
-          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
-
-      - name: Set Environment Variables
-        run: |
-          # Set different configs per environment
-          if [[ "$ENVIRONMENT" == "prod" ]]; then
-            echo "PORT=8000" >> $GITHUB_ENV
-            echo "HOST=0.0.0.0" >> $GITHUB_ENV
-          elif [[ "$ENVIRONMENT" == "qa" ]]; then
-            echo "PORT=8001" >> $GITHUB_ENV
-            echo "HOST=0.0.0.0" >> $GITHUB_ENV
-          else
-            echo "PORT=8002" >> $GITHUB_ENV
-            echo "HOST=0.0.0.0" >> $GITHUB_ENV
-          fi
-
-      - name: Start FastAPI Backend
-        run: |
-          echo "🚀 Starting backend in $ENVIRONMENT environment on port $PORT"
-          nohup uvicorn main:app --host $HOST --port $PORT > backend-$ENVIRONMENT.log 2>&1 &
+          pip install fastapi uvicorn bcrypt pyjwt
+          nohup uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
           sleep 15
-          curl -v http://localhost:$PORT/ || cat backend-$ENVIRONMENT.log
+          curl -v http://localhost:8000/ || cat backend.log
 
-      - name: Health Check
-        run: |
-          echo "🏥 Performing health check on $ENVIRONMENT environment"
-          curl -f http://localhost:$PORT/ || exit 1
-
-      - name: Upload Backend Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-logs-${{ env.ENVIRONMENT }}
-          path: backend-${{ env.ENVIRONMENT }}.log
-
-  jmeter-tests:
-    name: JMeter Performance Tests
-    needs: [setup, deploy-backend]
-    runs-on: ubuntu-latest
-    if: needs.setup.outputs.run-jmeter == 'true'
-    env:
-      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install and Start Backend
-        run: |
-          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
-          
-          # Set port based on environment
-          if [[ "$ENVIRONMENT" == "prod" ]]; then
-            PORT=8000
-          elif [[ "$ENVIRONMENT" == "qa" ]]; then
-            PORT=8001
-          else
-            PORT=8002
-          fi
-          
-          echo "Starting backend on port $PORT"
-          nohup uvicorn main:app --host 0.0.0.0 --port $PORT > backend.log 2>&1 &
-          sleep 15
-
+        
+        
       - name: Setup JMeter 5.6.3
         run: |
           echo "📦 Installing JMeter for $ENVIRONMENT environment"
