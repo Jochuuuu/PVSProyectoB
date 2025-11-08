@@ -1,8 +1,15 @@
+name: Multi-Environment CI/CD Pipeline
+
 on:
+  push:
+    branches:
+      - main      # PROD environment
+      - qa        # QA environment
+      - develop   # DEV environment
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Selecciona entorno'
+        description: 'Environment to deploy'
         required: true
         default: 'dev'
         type: choice
@@ -10,65 +17,60 @@ on:
           - dev
           - qa
           - prod
-  push:
-    branches:
-      - main
-      - develop
-      - 'release/**'
-  pull_request:
-    branches:
-      - main
-      - develop
-
-env:
-  ENVIRONMENT: ${{ 
-    github.ref == 'refs/heads/main' && 'prod' || 
-    github.ref == 'refs/heads/develop' && 'dev' || 
-    startsWith(github.ref, 'refs/heads/release/') && 'qa' || 
-    'dev' 
-  }}
 
 jobs:
-  # Job 1: Configuración inicial y determinación del entorno
   setup:
+    name: Setup Environment
     runs-on: ubuntu-latest
     outputs:
       environment: ${{ steps.set-env.outputs.environment }}
       run-sonarqube: ${{ steps.set-env.outputs.run-sonarqube }}
       run-jmeter: ${{ steps.set-env.outputs.run-jmeter }}
+    
     steps:
-      - name: Determine Environment and Jobs
+      - name: Determine Environment
         id: set-env
         run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "environment=prod" >> $GITHUB_OUTPUT
-            echo "run-sonarqube=false" >> $GITHUB_OUTPUT
-            echo "run-jmeter=true" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            echo "environment=dev" >> $GITHUB_OUTPUT
+          # Detect environment from branch or manual input
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          elif [[ "${{ github.ref }}" == "refs/heads/qa" ]]; then
+            ENV="qa"
+          else
+            ENV="dev"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🚀 Environment detected: $ENV"
+          
+          # Set conditional flags based on environment
+          if [[ "$ENV" == "dev" ]]; then
             echo "run-sonarqube=true" >> $GITHUB_OUTPUT
             echo "run-jmeter=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
-            echo "environment=qa" >> $GITHUB_OUTPUT
+          elif [[ "$ENV" == "qa" ]]; then
             echo "run-sonarqube=false" >> $GITHUB_OUTPUT
             echo "run-jmeter=true" >> $GITHUB_OUTPUT
           else
-            echo "environment=dev" >> $GITHUB_OUTPUT
-            echo "run-sonarqube=true" >> $GITHUB_OUTPUT
+            echo "run-sonarqube=false" >> $GITHUB_OUTPUT
             echo "run-jmeter=true" >> $GITHUB_OUTPUT
           fi
-
-      - name: Display Environment Info
+      
+      - name: Show Environment Configuration
         run: |
+          echo "================================"
           echo "🌍 Environment: ${{ steps.set-env.outputs.environment }}"
-          echo "🔍 Run SonarQube: ${{ steps.set-env.outputs.run-sonarqube }}"
+          echo "📊 Run SonarQube: ${{ steps.set-env.outputs.run-sonarqube }}"
           echo "⚡ Run JMeter: ${{ steps.set-env.outputs.run-jmeter }}"
+          echo "================================"
 
-  # Job 2: Build y Tests básicos (se ejecuta en todos los entornos)
   build-and-test:
+    name: Build and Unit Tests
     needs: setup
     runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
     
     steps:
       - name: Checkout repository
@@ -81,7 +83,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache pip dependencies
+      - name: Cache Python dependencies
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
@@ -94,23 +96,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt || true
 
-      - name: Run Unit Tests
+      - name: Run Unit Tests (pytest)
         run: |
+          echo "🧪 Running tests in $ENVIRONMENT environment"
           pytest --cov=. --cov-report=xml --cov-report=term-missing --ignore=tests/test_login_selenium.py
         continue-on-error: false
 
-      - name: Upload Coverage Reports
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report-${{ needs.setup.outputs.environment }}
+          name: coverage-report-${{ env.ENVIRONMENT }}
           path: coverage.xml
 
-  # Job 3: Análisis de Calidad de Código (solo DEV)
-  code-quality-analysis:
+  sonarqube-analysis:
+    name: SonarQube Analysis (DEV only)
     needs: [setup, build-and-test]
-    if: needs.setup.outputs.run-sonarqube == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
+    if: needs.setup.outputs.run-sonarqube == 'true'
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
     
     steps:
       - name: Checkout repository
@@ -121,7 +125,7 @@ jobs:
       - name: Download Coverage Report
         uses: actions/download-artifact@v4
         with:
-          name: coverage-report-${{ needs.setup.outputs.environment }}
+          name: coverage-report-${{ env.ENVIRONMENT }}
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
@@ -136,12 +140,12 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         timeout-minutes: 5
 
-  # Job 4: Pruebas de Performance (DEV y QA)
-  performance-tests:
+  deploy-backend:
+    name: Deploy Backend
     needs: [setup, build-and-test]
-    if: needs.setup.outputs.run-jmeter == 'true'
     runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
     
     steps:
       - name: Checkout repository
@@ -154,96 +158,155 @@ jobs:
 
       - name: Install Backend Dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install fastapi uvicorn bcrypt pyjwt
+          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
+
+      - name: Set Environment Variables
+        run: |
+          # Set different configs per environment
+          if [[ "$ENVIRONMENT" == "prod" ]]; then
+            echo "PORT=8000" >> $GITHUB_ENV
+            echo "HOST=0.0.0.0" >> $GITHUB_ENV
+          elif [[ "$ENVIRONMENT" == "qa" ]]; then
+            echo "PORT=8001" >> $GITHUB_ENV
+            echo "HOST=0.0.0.0" >> $GITHUB_ENV
+          else
+            echo "PORT=8002" >> $GITHUB_ENV
+            echo "HOST=0.0.0.0" >> $GITHUB_ENV
+          fi
 
       - name: Start FastAPI Backend
         run: |
-          nohup uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+          echo "🚀 Starting backend in $ENVIRONMENT environment on port $PORT"
+          nohup uvicorn main:app --host $HOST --port $PORT > backend-$ENVIRONMENT.log 2>&1 &
           sleep 15
-          curl -v http://localhost:8000/ || cat backend.log
+          curl -v http://localhost:$PORT/ || cat backend-$ENVIRONMENT.log
 
-      - name: Cache JMeter
-        uses: actions/cache@v3
+      - name: Health Check
+        run: |
+          echo "🏥 Performing health check on $ENVIRONMENT environment"
+          curl -f http://localhost:$PORT/ || exit 1
+
+      - name: Upload Backend Logs
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          path: apache-jmeter-5.6.3
-          key: ${{ runner.os }}-jmeter-5.6.3
+          name: backend-logs-${{ env.ENVIRONMENT }}
+          path: backend-${{ env.ENVIRONMENT }}.log
+
+  jmeter-tests:
+    name: JMeter Performance Tests
+    needs: [setup, deploy-backend]
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.run-jmeter == 'true'
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install and Start Backend
+        run: |
+          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
+          
+          # Set port based on environment
+          if [[ "$ENVIRONMENT" == "prod" ]]; then
+            PORT=8000
+          elif [[ "$ENVIRONMENT" == "qa" ]]; then
+            PORT=8001
+          else
+            PORT=8002
+          fi
+          
+          echo "Starting backend on port $PORT"
+          nohup uvicorn main:app --host 0.0.0.0 --port $PORT > backend.log 2>&1 &
+          sleep 15
 
       - name: Setup JMeter 5.6.3
         run: |
-          if [ ! -d "apache-jmeter-5.6.3" ]; then
-            wget https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
-            tar -xzf apache-jmeter-5.6.3.tgz
-          fi
+          echo "📦 Installing JMeter for $ENVIRONMENT environment"
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
           export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
           jmeter --version
 
       - name: Run JMeter Performance Tests
         run: |
           export PATH="$(pwd)/apache-jmeter-5.6.3/bin:$PATH"
+          
+          # Set different load profiles per environment
+          if [[ "$ENVIRONMENT" == "prod" ]]; then
+            THREADS=50
+            RAMP_UP=30
+          elif [[ "$ENVIRONMENT" == "qa" ]]; then
+            THREADS=30
+            RAMP_UP=20
+          else
+            THREADS=10
+            RAMP_UP=10
+          fi
+          
+          echo "⚡ Running JMeter tests in $ENVIRONMENT with $THREADS threads"
           jmeter -n -t tests/jmeter/backend-test.jmx \
-            -l jmeter-results-${{ needs.setup.outputs.environment }}.jtl \
+            -l jmeter-results-$ENVIRONMENT.jtl \
             -JBASE_URL=localhost \
-            -JENVIRONMENT=${{ needs.setup.outputs.environment }}
-          jmeter -g jmeter-results-${{ needs.setup.outputs.environment }}.jtl \
-            -o jmeter-report-${{ needs.setup.outputs.environment }}
+            -JThreads=$THREADS \
+            -JRampUp=$RAMP_UP
+          
+          jmeter -g jmeter-results-$ENVIRONMENT.jtl -o jmeter-report-$ENVIRONMENT
 
       - name: Upload JMeter HTML Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-html-report-${{ needs.setup.outputs.environment }}
-          path: jmeter-report-${{ needs.setup.outputs.environment }}/
+          name: jmeter-html-report-${{ env.ENVIRONMENT }}
+          path: jmeter-report-${{ env.ENVIRONMENT }}/
 
       - name: Upload JMeter Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-results-${{ needs.setup.outputs.environment }}
-          path: jmeter-results-${{ needs.setup.outputs.environment }}.jtl
+          name: jmeter-results-${{ env.ENVIRONMENT }}
+          path: jmeter-results-${{ env.ENVIRONMENT }}.jtl
 
-      - name: Show backend logs (if failed)
+      - name: Show Backend Logs (if failed)
         if: failure()
         run: cat backend.log
 
-  # Job 5: Deploy (condicional por entorno)
-  deploy:
-    needs: [setup, build-and-test, code-quality-analysis, performance-tests]
-    if: always() && needs.build-and-test.result == 'success'
-    runs-on: ubuntu-latest
-    environment: ${{ needs.setup.outputs.environment }}
-    
-    steps:
-      - name: Deploy to ${{ needs.setup.outputs.environment }}
-        run: |
-          echo "🚀 Deploying to ${{ needs.setup.outputs.environment }} environment"
-          echo "✅ All required checks passed for ${{ needs.setup.outputs.environment }}"
-          # Aquí irían los comandos reales de deploy según el entorno
-          
-      - name: Notify Deployment
-        run: |
-          echo "📢 Deployment to ${{ needs.setup.outputs.environment }} completed successfully!"
-
-  # Job 6: Resumen Final
   summary:
-    needs: [setup, build-and-test, code-quality-analysis, performance-tests, deploy]
-    if: always()
+    name: Pipeline Summary
+    needs: [setup, build-and-test, sonarqube-analysis, deploy-backend, jmeter-tests]
     runs-on: ubuntu-latest
+    if: always()
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
     
     steps:
-      - name: Pipeline Summary
+      - name: Generate Summary
         run: |
-          echo "# 📊 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
+          echo "# 🎯 Pipeline Execution Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Environment: **${{ needs.setup.outputs.environment }}**" >> $GITHUB_STEP_SUMMARY
+          echo "## Environment: **$ENVIRONMENT**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Build & Test | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality (SonarQube) | ${{ needs.code-quality-analysis.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Performance Tests (JMeter) | ${{ needs.performance-tests.result || 'Skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Deploy | ${{ needs.deploy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "### Stages Executed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build and Unit Tests" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.setup.outputs.run-sonarqube }}" == "true" ]]; then
+            echo "- ✅ SonarQube Analysis (DEV only)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⏭️ SonarQube Analysis (Skipped - Not DEV)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "- ✅ Backend Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ JMeter Performance Tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔍 SonarQube: ${{ needs.setup.outputs.run-sonarqube }}" >> $GITHUB_STEP_SUMMARY
-          echo "- ⚡ JMeter: ${{ needs.setup.outputs.run-jmeter }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SonarQube: ${{ needs.sonarqube-analysis.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Deploy: ${{ needs.deploy-backend.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- JMeter: ${{ needs.jmeter-tests.result }}" >> $GITHUB_STEP_SUMMARY
