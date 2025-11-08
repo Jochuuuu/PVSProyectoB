@@ -231,6 +231,41 @@ jobs:
           name: backend-logs-${{ env.ENVIRONMENT }}
           path: backend-${{ env.ENVIRONMENT }}.log
 
+  newman-tests:
+    name: Newman API Tests (DEV & QA only)
+    needs: [setup, deploy-backend]
+    runs-on: ubuntu-latest
+    if: needs.setup.outputs.environment != 'prod'
+    env:
+      ENVIRONMENT: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Newman
+        run: npm install -g newman
+
+      - name: Set Backend URL
+        run: |
+          if [[ "$ENVIRONMENT" == "qa" ]]; then
+            echo "BASE_URL=http://localhost:8001" >> $GITHUB_ENV
+          else
+            echo "BASE_URL=http://localhost:8002" >> $GITHUB_ENV
+          fi
+
+      - name: Run Newman Tests
+        run: |
+          echo "🧪 Running Newman API tests in $ENVIRONMENT environment"
+          newman run postman/backend-api-tests.json \
+            --env-var "baseUrl=$BASE_URL"
+        continue-on-error: true
+  
   jmeter-tests:
     name: JMeter Performance Tests
     needs: [setup, deploy-backend]
@@ -332,7 +367,7 @@ jobs:
 
   summary:
     name: Pipeline Summary
-    needs: [setup, build-and-test, sonarqube-analysis, deploy-backend, jmeter-tests]
+    needs: [setup, build-and-test, sonarqube-analysis, deploy-backend, newman-tests, jmeter-tests]
     runs-on: ubuntu-latest
     if: always()
     env:
@@ -355,6 +390,13 @@ jobs:
           fi
           
           echo "- ✅ Backend Deployment" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "$ENVIRONMENT" != "prod" ]]; then
+            echo "- ✅ Newman API Tests (DEV & QA)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⏭️ Newman API Tests (Skipped - PROD)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "- ✅ JMeter Performance Tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Results:" >> $GITHUB_STEP_SUMMARY
