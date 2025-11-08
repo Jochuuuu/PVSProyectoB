@@ -156,9 +156,25 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Backend Dependencies
+      - name: Install System Dependencies for rtree
         run: |
-          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
+          echo "📦 Installing system dependencies for rtree..."
+          sudo apt-get update
+          sudo apt-get install -y libspatialindex-dev
+          echo "✅ System dependencies installed"
+      
+      - name: Install Python Dependencies
+        run: |
+          echo "🐍 Installing Python dependencies..."
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          echo "✅ All Python dependencies installed"
+      
+      - name: Verify rtree Installation
+        run: |
+          echo "🔍 Verifying rtree installation..."
+          python -c "from rtree import index; print('✅ rtree imported successfully')"
+          pip show rtree
 
       - name: Set Environment Variables
         run: |
@@ -174,17 +190,39 @@ jobs:
             echo "HOST=0.0.0.0" >> $GITHUB_ENV
           fi
 
-      - name: Start FastAPI Backend
+      - name: Start FastAPI Backend and Health Check
         run: |
           echo "🚀 Starting backend in $ENVIRONMENT environment on port $PORT"
           nohup uvicorn main:app --host $HOST --port $PORT > backend-$ENVIRONMENT.log 2>&1 &
-          sleep 15
-          curl -v http://localhost:$PORT/ || cat backend-$ENVIRONMENT.log
-
-      - name: Health Check
-        run: |
+          BACKEND_PID=$!
+          echo "Backend PID: $BACKEND_PID"
+          
+          # Wait for backend to start (max 30 seconds)
+          echo "⏳ Waiting for backend to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:$PORT/health > /dev/null 2>&1; then
+              echo "✅ Backend is ready after $i seconds"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ Backend failed to start after 30 seconds"
+              echo "📋 Backend logs:"
+              cat backend-$ENVIRONMENT.log
+              exit 1
+            fi
+            sleep 1
+          done
+          
+          # Final health check
           echo "🏥 Performing health check on $ENVIRONMENT environment"
-          curl -f http://localhost:$PORT/ || exit 1
+          if curl -f http://localhost:$PORT/health; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed"
+            echo "📋 Backend logs:"
+            cat backend-$ENVIRONMENT.log
+            exit 1
+          fi
 
       - name: Upload Backend Logs
         if: always()
@@ -210,9 +248,20 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Install System Dependencies for Backend
+        run: |
+          echo "📦 Installing system dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y libspatialindex-dev
+          
       - name: Install and Start Backend
         run: |
-          pip install fastapi uvicorn bcrypt pyjwt python-dotenv
+          echo "🐍 Installing all Python dependencies..."
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+          echo "🔍 Verifying rtree..."
+          python -c "from rtree import index; print('✅ rtree OK')"
           
           # Set port based on environment
           if [[ "$ENVIRONMENT" == "prod" ]]; then
@@ -223,9 +272,12 @@ jobs:
             PORT=8002
           fi
           
-          echo "Starting backend on port $PORT"
+          echo "🚀 Starting backend on port $PORT"
           nohup uvicorn main:app --host 0.0.0.0 --port $PORT > backend.log 2>&1 &
           sleep 15
+          
+          echo "✅ Backend started, checking if running..."
+          curl -v http://localhost:$PORT/health || cat backend.log
 
       - name: Setup JMeter 5.6.3
         run: |
