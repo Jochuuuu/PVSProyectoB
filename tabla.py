@@ -6,7 +6,7 @@ from pathlib import Path
 from estructuras.hash import ExtendibleHashFile
 from estructuras.avl import AVLFile
 from estructuras.point_class import Point 
-from estructuras.rtreee import RTreeFile  
+from estructuras.rtree_class import RTreeFile  
 
 class TableStorageManager:
     """
