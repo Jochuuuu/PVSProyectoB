@@ -1105,6 +1105,7 @@ class SQLTableManager:
         print(f"Analizando WHERE clause: '{where_clause}'")
 
         # 1. Primero extraer condiciones BETWEEN
+        #between_pattern = r"(\w+)\s+BETWEEN\s+([^\s]+(?:\s+[^\s]+)*?)\s+AND\s+([^\s]+(?:\s+[^\s]+)*?
         between_pattern = r"(\w+)\s+BETWEEN\s+(\S+)\s+AND\s+(\S+)"
         between_matches = list(re.finditer(between_pattern, where_clause, re.IGNORECASE))
 
