@@ -621,140 +621,203 @@ class TableStorageManager:
     ):
         """
         Busca registros que cumplan todas las condiciones especificadas.
-        VERSIÓN ACTUALIZADA con soporte para búsquedas espaciales R-Tree.
-
-        Args:
-            lista_busquedas: Lista de búsquedas exactas [attr_name, value]
-            lista_rangos: Lista de rangos [attr_name, min_val, max_val]
-            lista_espaciales: Lista de búsquedas espaciales [tipo, attr_name, center_point, param]
-                            donde tipo es 'RADIUS' o 'KNN' y param es radio o k
-            requested_attributes: Atributos solicitados
+        VERSIÓN REFACTORIZADA con baja complejidad cognitiva.
         """
         print("quee", lista_busquedas, lista_rangos, lista_espaciales, "gaa")
+        
+        # Caso sin condiciones: retornar todos los registros
         if not lista_busquedas and not lista_rangos and not lista_espaciales:
-            print("No hay condiciones WHERE - retornando todos los registros")
-            all_records = self._get_all_active_record_numbers()
-            return {
-                "error": False,
-                "numeros_registro": all_records,
-                "requested_attributes": requested_attributes,
-            }
-
-        conjuntos_resultados = []
-        errores = []
-
-        # Procesar búsquedas exactas (código existente)
-        if lista_busquedas:
-            for i, (attr_name, valor) in enumerate(lista_busquedas):
-                converted_value = self._convert_search_value(attr_name, valor)
-
-                if attr_name in self.indices:
-                    indice = self.indices[attr_name]
-                    resultados = indice.search(converted_value)
-
-                    if not resultados:
-                        return {
-                            "error": False,
-                            "numeros_registro": [],
-                            "requested_attributes": requested_attributes,
-                        }
-
-                    conjuntos_resultados.append(set(resultados))
-                else:
-                    error_msg = f"No existe índice para {attr_name}"
-                    errores.append({"error": True, "message": error_msg, "type": "no_index"})
-
-        if lista_rangos:
-            for i, (attr_name, min_val, max_val) in enumerate(lista_rangos):
-                converted_min = self._convert_search_value(attr_name, min_val)
-                converted_max = self._convert_search_value(attr_name, max_val)
-
-                if attr_name in self.indices:
-                    indice = self.indices[attr_name]
-                    resultado = indice.range_search(converted_min, converted_max)
-                    print("aver resultado", resultado)
-                    print(i, attr_name)
-                    if isinstance(resultado, dict) and resultado.get("error", False):
-                        errores.append(resultado)
-                        continue
-
-                    if not resultado:
-                        return {
-                            "error": False,
-                            "numeros_registro": [],
-                            "requested_attributes": requested_attributes,
-                        }
-
-                    conjuntos_resultados.append(set(resultado))
-                else:
-                    error_msg = f"No existe índice para {attr_name}"
-                    errores.append({"error": True, "message": error_msg, "type": "no_index"})
-
-        if lista_espaciales:
-            for i, (tipo, attr_name, center_point, param) in enumerate(lista_espaciales):
-                try:
-                    if tipo.upper() == "RADIUS":
-                        # Búsqueda por radio
-                        radio = float(param)
-                        resultados = self.spatial_radius_search(attr_name, center_point, radio)
-                        print(f"Búsqueda radial: {attr_name} centro={center_point} radio={radio} → {len(resultados)} resultados")
-
-                    elif tipo.upper() == "KNN":
-                        # Búsqueda K vecinos más cercanos
-                        k = int(param)
-                        resultados = self.spatial_knn_search(attr_name, center_point, k)
-                        print(f"Búsqueda KNN: {attr_name} centro={center_point} k={k} → {len(resultados)} resultados")
-
-                    else:
-                        error_msg = f"Tipo de búsqueda espacial '{tipo}' no soportado"
-                        errores.append({"error": True, "message": error_msg, "type": "unsupported_spatial"})
-                        continue
-
-                    if not resultados:
-                        return {
-                            "error": False,
-                            "numeros_registro": [],
-                            "requested_attributes": requested_attributes,
-                        }
-
-                    conjuntos_resultados.append(set(resultados))
-
-                except Exception as e:
-                    error_msg = f"Error en búsqueda espacial {tipo} para {attr_name}: {str(e)}"
-                    errores.append({"error": True, "message": error_msg, "type": "spatial_error"})
-
+            return self._return_all_active_records(requested_attributes)
+        
+        # Procesar todas las búsquedas
+        conjuntos_resultados, errores = self._process_all_searches(
+            lista_busquedas, lista_rangos, lista_espaciales
+        )
+        
+        # Manejar errores
         if errores:
             return {
                 "error": True,
                 "errores": errores,
                 "message": "Se encontraron errores en la consulta",
             }
-
+        
+        # Validar que hay resultados para procesar
         if not conjuntos_resultados:
             return {
                 "error": True,
                 "message": "No se pudieron procesar las búsquedas",
                 "errores": [],
             }
+        
+        # Calcular intersección final
+        interseccion_final = self._calculate_intersection(conjuntos_resultados)
+        
+        return {
+            "error": False,
+            "numeros_registro": list(interseccion_final),
+            "requested_attributes": requested_attributes,
+        }
 
-        # Intersección de todos los conjuntos de resultados
+    def _return_all_active_records(self, requested_attributes):
+        """Retorna todos los registros activos cuando no hay condiciones."""
+        print("No hay condiciones WHERE - retornando todos los registros")
+        all_records = self._get_all_active_record_numbers()
+        return {
+            "error": False,
+            "numeros_registro": all_records,
+            "requested_attributes": requested_attributes,
+        }
+
+    def _process_all_searches(self, lista_busquedas, lista_rangos, lista_espaciales):
+        """
+        Procesa todas las búsquedas (exactas, rangos y espaciales).
+        
+        Returns:
+            tuple: (conjuntos_resultados, errores)
+        """
+        conjuntos_resultados = []
+        errores = []
+        
+        # Procesar búsquedas exactas
+        if lista_busquedas:
+            resultados, errors = self._process_exact_searches(lista_busquedas)
+            conjuntos_resultados.extend(resultados)
+            errores.extend(errors)
+        
+        # Procesar búsquedas por rango
+        if lista_rangos:
+            resultados, errors = self._process_range_searches(lista_rangos)
+            conjuntos_resultados.extend(resultados)
+            errores.extend(errors)
+        
+        # Procesar búsquedas espaciales
+        if lista_espaciales:
+            resultados, errors = self._process_spatial_searches(lista_espaciales)
+            conjuntos_resultados.extend(resultados)
+            errores.extend(errors)
+        
+        return conjuntos_resultados, errores
+
+    def _process_exact_searches(self, lista_busquedas):
+        """Procesa búsquedas exactas."""
+        resultados = []
+        errores = []
+        
+        for attr_name, valor in lista_busquedas:
+            converted_value = self._convert_search_value(attr_name, valor)
+            
+            if attr_name not in self.indices:
+                errores.append({
+                    "error": True,
+                    "message": f"No existe índice para {attr_name}",
+                    "type": "no_index"
+                })
+                continue
+            
+            indice = self.indices[attr_name]
+            records = indice.search(converted_value)
+            
+            if not records:
+                # Retorno temprano: sin coincidencias = resultado vacío final
+                resultados.append(set())
+            else:
+                resultados.append(set(records))
+        
+        return resultados, errores
+
+    def _process_range_searches(self, lista_rangos):
+        """Procesa búsquedas por rango."""
+        resultados = []
+        errores = []
+        
+        for i, (attr_name, min_val, max_val) in enumerate(lista_rangos):
+            converted_min = self._convert_search_value(attr_name, min_val)
+            converted_max = self._convert_search_value(attr_name, max_val)
+            
+            if attr_name not in self.indices:
+                errores.append({
+                    "error": True,
+                    "message": f"No existe índice para {attr_name}",
+                    "type": "no_index"
+                })
+                continue
+            
+            indice = self.indices[attr_name]
+            resultado = indice.range_search(converted_min, converted_max)
+            
+            print("aver resultado", resultado)
+            print(i, attr_name)
+            
+            if isinstance(resultado, dict) and resultado.get("error", False):
+                errores.append(resultado)
+                continue
+            
+            if not resultado:
+                resultados.append(set())
+            else:
+                resultados.append(set(resultado))
+        
+        return resultados, errores
+
+    def _process_spatial_searches(self, lista_espaciales):
+        """Procesa búsquedas espaciales (RADIUS y KNN)."""
+        resultados = []
+        errores = []
+        
+        for tipo, attr_name, center_point, param in lista_espaciales:
+            try:
+                records = self._execute_spatial_search(tipo, attr_name, center_point, param)
+                
+                if not records:
+                    resultados.append(set())
+                else:
+                    resultados.append(set(records))
+                    
+            except ValueError as e:
+                errores.append({
+                    "error": True,
+                    "message": str(e),
+                    "type": "unsupported_spatial"
+                })
+            except Exception as e:
+                errores.append({
+                    "error": True,
+                    "message": f"Error en búsqueda espacial {tipo} para {attr_name}: {str(e)}",
+                    "type": "spatial_error"
+                })
+        
+        return resultados, errores
+
+    def _execute_spatial_search(self, tipo, attr_name, center_point, param):
+        """Ejecuta una búsqueda espacial específica."""
+        tipo_upper = tipo.upper()
+        
+        if tipo_upper == "RADIUS":
+            radio = float(param)
+            resultados = self.spatial_radius_search(attr_name, center_point, radio)
+            print(f"Búsqueda radial: {attr_name} centro={center_point} radio={radio} → {len(resultados)} resultados")
+            return resultados
+        
+        elif tipo_upper == "KNN":
+            k = int(param)
+            resultados = self.spatial_knn_search(attr_name, center_point, k)
+            print(f"Búsqueda KNN: {attr_name} centro={center_point} k={k} → {len(resultados)} resultados")
+            return resultados
+        
+        else:
+            raise ValueError(f"Tipo de búsqueda espacial '{tipo}' no soportado")
+
+    def _calculate_intersection(self, conjuntos_resultados):
+        """Calcula la intersección de todos los conjuntos de resultados."""
         interseccion_final = conjuntos_resultados[0]
+        
         for conjunto in conjuntos_resultados[1:]:
             interseccion_final = interseccion_final.intersection(conjunto)
             if not interseccion_final:
-                return {
-                    "error": False,
-                    "numeros_registro": [],
-                    "requested_attributes": requested_attributes,
-                }
-
-        resultado_final = list(interseccion_final)
-
-        return {
-            "error": False,
-            "numeros_registro": resultado_final,
-            "requested_attributes": requested_attributes,
-        }
+                break  # Optimización: si ya está vacío, no seguir
+        
+        return interseccion_final
 
     def _convert_search_value(self, attr_name, value):
         """

@@ -347,7 +347,7 @@ async def get_table_info(table_name: str):
 from pydantic import BaseModel
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 # Modelos para requests
@@ -425,7 +425,7 @@ async def login(request: LoginRequest):
     payload = {
         "user_id": user_data["id"],
         "username": user_data["user"],
-        "exp": datetime.utcnow() + timedelta(hours=24),  # Expira en 24 horas
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24),  # Expira en 24 horas
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 

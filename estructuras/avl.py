@@ -323,13 +323,7 @@ class AVLFile:
             return index
         else:
             # No hay nodos libres, crear uno nuevo al final del archivo
-            node = {
-                "clave": clave,
-                "left": left,
-                "right": right,
-                "height": height,
-                "next": -2,
-            }  # -2 para nodos en uso
+       
             with open(self.filename, "ab") as f:
                 # El índice ahora depende del tamaño del archivo y la cabecera
                 index = (f.tell() - self.header_size) // self.record_node_size + 1
@@ -363,11 +357,11 @@ class AVLFile:
         if x_index == 0:
             return y_index
         x = self._read_node(x_index)
-        T2_index = x["right"]
+        t2_index  = x["right"]
 
         # Rotación
         x["right"] = y_index
-        y["left"] = T2_index
+        y["left"] = t2_index 
 
         self._write_node(y_index, y)
         self._write_node(x_index, x)
@@ -384,11 +378,11 @@ class AVLFile:
         if y_index == 0:
             return x_index
         y = self._read_node(y_index)
-        T2_index = y["left"]
+        t2_index = y["left"]
 
         # Rotación
         y["left"] = x_index
-        x["right"] = T2_index
+        x["right"] = t2_index
 
         self._write_node(x_index, x)
         self._write_node(y_index, y)
@@ -468,17 +462,12 @@ class AVLFile:
         if comparison < 0:  # clave < root_node['clave'] (por valor de atributo)
             root_node["left"] = self._insert_rec(clave, root_node["left"])
             self._write_node(root_index, root_node)
-        elif comparison > 0:  # clave > root_node['clave'] (por valor de atributo)
+        elif comparison == 0 and self.is_key:
+            # Si es árbol de claves únicas y valores iguales, no hacer nada
+            return root_index
+        else:    # comparison > 0 O (comparison == 0 and not self.is_key)  # Insertar a la derecha
             root_node["right"] = self._insert_rec(clave, root_node["right"])
             self._write_node(root_index, root_node)
-        else:  # comparison == 0, valores iguales
-            if self.is_key:
-                # Si es árbol de claves únicas, reemplazar el nodo actual (o no hacer nada)
-                return root_index
-            else:
-                # Si permite duplicados, insertar a la derecha
-                root_node["right"] = self._insert_rec(clave, root_node["right"])
-                self._write_node(root_index, root_node)
 
         # Actualizar altura y rebalancear
         return self._rebalance(root_index)
