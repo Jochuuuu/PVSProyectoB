@@ -457,6 +457,13 @@ jobs:
           echo "- ✅ JMeter Performance Tests" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Job Results:" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.setup.outputs.run-sonarqube }}" == "true" ]]; then
+            echo "- ✅ Google Code Style Validation" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ⏭️ Google Code Style Validation (Skipped - Not DEV)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Build: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- SonarQube: ${{ needs.sonarqube-analysis.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Deploy: ${{ needs.deploy-backend.result }}" >> $GITHUB_STEP_SUMMARY
