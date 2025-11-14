@@ -424,7 +424,7 @@ jobs:
 
   summary:
     name: Pipeline Summary
-    needs: [setup, build-and-test, sonarqube-analysis, deploy-backend, newman-tests, jmeter-tests]
+    needs: [setup, build-and-test,code-style-check, sonarqube-analysis, deploy-backend, newman-tests, jmeter-tests]
     runs-on: ubuntu-latest
     if: always()
     env:
