@@ -18,9 +18,7 @@ class RTreeFile:
     3. Búsquedas rectangulares tradicionales
     """
 
-    def __init__(
-        self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False
-    ):
+    def __init__(self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False):
         self.record_format = record_format
         self.index_attr = index_attr  # El atributo a indexar (debe ser Point)
         self.table_name = table_name
@@ -276,10 +274,7 @@ class RTreeFile:
             for record_num in candidates:
                 point = self.get_attribute_from_record_num(record_num)
                 if point and isinstance(point, Point):
-                    if (
-                        abs(point.x - target_point.x) < 1e-10
-                        and abs(point.y - target_point.y) < 1e-10
-                    ):
+                    if abs(point.x - target_point.x) < 1e-10 and abs(point.y - target_point.y) < 1e-10:
                         exact_matches.append(record_num)
 
             return exact_matches
@@ -357,9 +352,7 @@ class RTreeFile:
                 point = self.get_attribute_from_record_num(record_num)
                 if point and isinstance(point, Point):
                     # Calcular distancia euclidiana
-                    distance = math.sqrt(
-                        (point.x - center_point.x) ** 2 + (point.y - center_point.y) ** 2
-                    )
+                    distance = math.sqrt((point.x - center_point.x) ** 2 + (point.y - center_point.y) ** 2)
                     if distance <= radius:
                         results.append(record_num)
 
@@ -398,9 +391,7 @@ class RTreeFile:
             for record_num in nearest_ids:
                 point = self.get_attribute_from_record_num(record_num)
                 if point and isinstance(point, Point):
-                    distance = math.sqrt(
-                        (point.x - center_point.x) ** 2 + (point.y - center_point.y) ** 2
-                    )
+                    distance = math.sqrt((point.x - center_point.x) ** 2 + (point.y - center_point.y) ** 2)
                     results.append((record_num, distance))
 
             # Ordenar por distancia (aunque ya debería estar ordenado)

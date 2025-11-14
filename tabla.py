@@ -697,23 +697,17 @@ class TableStorageManager:
                         # Búsqueda por radio
                         radio = float(param)
                         resultados = self.spatial_radius_search(attr_name, center_point, radio)
-                        print(
-                            f"Búsqueda radial: {attr_name} centro={center_point} radio={radio} → {len(resultados)} resultados"
-                        )
+                        print(f"Búsqueda radial: {attr_name} centro={center_point} radio={radio} → {len(resultados)} resultados")
 
                     elif tipo.upper() == "KNN":
                         # Búsqueda K vecinos más cercanos
                         k = int(param)
                         resultados = self.spatial_knn_search(attr_name, center_point, k)
-                        print(
-                            f"Búsqueda KNN: {attr_name} centro={center_point} k={k} → {len(resultados)} resultados"
-                        )
+                        print(f"Búsqueda KNN: {attr_name} centro={center_point} k={k} → {len(resultados)} resultados")
 
                     else:
                         error_msg = f"Tipo de búsqueda espacial '{tipo}' no soportado"
-                        errores.append(
-                            {"error": True, "message": error_msg, "type": "unsupported_spatial"}
-                        )
+                        errores.append({"error": True, "message": error_msg, "type": "unsupported_spatial"})
                         continue
 
                     if not resultados:

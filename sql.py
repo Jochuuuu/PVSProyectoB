@@ -63,9 +63,7 @@ class SQLTableManager:
                     self.tables[table_name] = table_info
 
                     if self.storage_class:
-                        self.storage_managers[table_name] = self.storage_class(
-                            table_name, table_info, self.base_dir
-                        )
+                        self.storage_managers[table_name] = self.storage_class(table_name, table_info, self.base_dir)
 
                 except Exception:
                     continue
@@ -186,11 +184,7 @@ class SQLTableManager:
 
     def _is_line_comment_start(self, sql_statement, index):
         """Verifica si en la posición actual inicia un comentario de línea."""
-        return (
-            sql_statement[index] == "-"
-            and index + 1 < len(sql_statement)
-            and sql_statement[index + 1] == "-"
-        )
+        return sql_statement[index] == "-" and index + 1 < len(sql_statement) and sql_statement[index + 1] == "-"
 
     def _skip_line_comment(self, sql_statement, start_index, result):
         """Salta un comentario de línea y retorna el nuevo índice."""
@@ -208,11 +202,7 @@ class SQLTableManager:
 
     def _is_multiline_comment_start(self, sql_statement, index):
         """Verifica si en la posición actual inicia un comentario multilínea."""
-        return (
-            sql_statement[index] == "/"
-            and index + 1 < len(sql_statement)
-            and sql_statement[index + 1] == "*"
-        )
+        return sql_statement[index] == "/" and index + 1 < len(sql_statement) and sql_statement[index + 1] == "*"
 
     def _skip_multiline_comment(self, sql_statement, start_index):
         """Salta un comentario multilínea y retorna el nuevo índice."""
@@ -304,9 +294,7 @@ class SQLTableManager:
                     return table_name
 
                 # Crear un nuevo gestor
-                self.storage_managers[table_name] = self.storage_class(
-                    table_name, table_info, self.base_dir
-                )
+                self.storage_managers[table_name] = self.storage_class(table_name, table_info, self.base_dir)
 
             return table_name
         return None
@@ -344,9 +332,7 @@ class SQLTableManager:
 
                 return {"table_name": table_name, "records": records, "inserted_ids": inserted_ids}
             else:
-                print(
-                    f"Advertencia: No hay un gestor de almacenamiento para la tabla '{table_name}'."
-                )
+                print(f"Advertencia: No hay un gestor de almacenamiento para la tabla '{table_name}'.")
 
             return {"table_name": table_name, "records": records}
 
@@ -505,16 +491,12 @@ class SQLTableManager:
 
         if options_str:
             if "DELIMITER" in options_str.upper():
-                delimiter_match = re.search(
-                    r"DELIMITER\s*['\"]([^'\"]+)['\"]", options_str, re.IGNORECASE
-                )
+                delimiter_match = re.search(r"DELIMITER\s*['\"]([^'\"]+)['\"]", options_str, re.IGNORECASE)
                 if delimiter_match:
                     delimiter = delimiter_match.group(1)
 
             if "ENCODING" in options_str.upper():
-                encoding_match = re.search(
-                    r"ENCODING\s*['\"]([^'\"]+)['\"]", options_str, re.IGNORECASE
-                )
+                encoding_match = re.search(r"ENCODING\s*['\"]([^'\"]+)['\"]", options_str, re.IGNORECASE)
                 if encoding_match:
                     encoding = encoding_match.group(1)
 
@@ -580,9 +562,7 @@ class SQLTableManager:
                         # Mapear cada columna del CSV que tengamos
                         for csv_col_index, table_attr in column_mapping.items():
                             if csv_col_index < len(row):
-                                value_str = (
-                                    row[csv_col_index].strip() if row[csv_col_index] else None
-                                )
+                                value_str = row[csv_col_index].strip() if row[csv_col_index] else None
 
                                 # Si el valor no está vacío, convertirlo
                                 if value_str and value_str.lower() not in [
@@ -592,9 +572,7 @@ class SQLTableManager:
                                     "n/a",
                                     "na",
                                 ]:
-                                    converted_value = self._convert_csv_value(
-                                        value_str, table_attr, table_info
-                                    )
+                                    converted_value = self._convert_csv_value(value_str, table_attr, table_info)
                                     if converted_value is not None:
                                         record[table_attr] = converted_value
                                 # Si está vacío, ya tiene el valor por defecto
@@ -603,20 +581,14 @@ class SQLTableManager:
                         if primary_key_attr:
                             pk_value = record.get(primary_key_attr)
                             default_pk = self._get_default_value_for_type(
-                                next(
-                                    attr["data_type"]
-                                    for attr in table_info["attributes"]
-                                    if attr["name"] == primary_key_attr
-                                )
+                                next(attr["data_type"] for attr in table_info["attributes"] if attr["name"] == primary_key_attr)
                             )
 
                             # Si el PK sigue siendo el valor por defecto, verificar si vino del CSV
                             pk_col_in_csv = False
                             for csv_col_index, table_attr in column_mapping.items():
                                 if table_attr == primary_key_attr and csv_col_index < len(row):
-                                    csv_value = (
-                                        row[csv_col_index].strip() if row[csv_col_index] else None
-                                    )
+                                    csv_value = row[csv_col_index].strip() if row[csv_col_index] else None
                                     if csv_value and csv_value.lower() not in [
                                         "",
                                         "null",
@@ -676,8 +648,7 @@ class SQLTableManager:
                 if (
                     header_clean in table_attr_lower
                     or table_attr_lower in header_clean
-                    or header_clean.replace("_", "").replace(" ", "")
-                    == table_attr_lower.replace("_", "")
+                    or header_clean.replace("_", "").replace(" ", "") == table_attr_lower.replace("_", "")
                 ):
                     mapping[i] = table_attr_original
                     break
@@ -732,11 +703,7 @@ class SQLTableManager:
             return Point(0.0, 0.0)  # Punto origen como valor por defecto
         elif "INT" in data_type_upper:
             return 0
-        elif (
-            "DECIMAL" in data_type_upper
-            or "FLOAT" in data_type_upper
-            or "DOUBLE" in data_type_upper
-        ):
+        elif "DECIMAL" in data_type_upper or "FLOAT" in data_type_upper or "DOUBLE" in data_type_upper:
             return 0.0
         elif "BOOL" in data_type_upper:
             return False
@@ -1181,9 +1148,7 @@ class SQLTableManager:
                     print(f"Comparación encontrada: {attr_name} {operator} {value} → rango")
 
                 # Remover del remaining_clause
-                remaining_clause = (
-                    remaining_clause[: match.start()] + remaining_clause[match.end() :]
-                )
+                remaining_clause = remaining_clause[: match.start()] + remaining_clause[match.end() :]
 
         # 3. Limpiar remaining_clause
         remaining_clause = self.clean_duplicate_ands(remaining_clause)
@@ -1433,9 +1398,7 @@ class SQLTableManager:
             dict: Diccionario con todas las tablas.
         """
 
-        return {
-            name: info for name, info in self.tables.items() if name not in self.blacklisted_tables
-        }
+        return {name: info for name, info in self.tables.items() if name not in self.blacklisted_tables}
 
     def execute_sql(self, sql_statement):
         """
@@ -1730,9 +1693,7 @@ class SQLTableManager:
         if where_clause:
             try:
                 # 🔧 USAR SOLO EL NUEVO MÉTODO que soporta espaciales
-                lista_busquedas, lista_rangos, lista_espaciales = self._parse_where_with_spatial(
-                    where_clause, table_name
-                )
+                lista_busquedas, lista_rangos, lista_espaciales = self._parse_where_with_spatial(where_clause, table_name)
             except Exception as e:
                 return {"error": True, "message": f"Error al parsear condiciones WHERE: {str(e)}"}
 
@@ -1826,9 +1787,7 @@ class SQLTableManager:
                 param_str = parts[2].strip()
 
                 # Remover comillas externas del center_str
-                if (center_str.startswith("'") and center_str.endswith("'")) or (
-                    center_str.startswith('"') and center_str.endswith('"')
-                ):
+                if (center_str.startswith("'") and center_str.endswith("'")) or (center_str.startswith('"') and center_str.endswith('"')):
                     center_str = center_str[1:-1]
 
                 new_clause = clause[:start_idx] + clause[end_idx + 1 :]
@@ -1880,17 +1839,13 @@ class SQLTableManager:
 
         if remaining_clause:
             try:
-                temp_busquedas, temp_rangos = self._parse_where_with_ranges(
-                    remaining_clause, table_name
-                )
+                temp_busquedas, temp_rangos = self._parse_where_with_ranges(remaining_clause, table_name)
                 lista_busquedas.extend(temp_busquedas)
                 lista_rangos.extend(temp_rangos)
             except Exception as e:
                 print(f"Error en condiciones restantes: {e}")
 
-        print(
-            f"RESULTADO: Exactas={lista_busquedas}, Rangos={lista_rangos}, Espaciales={lista_espaciales}"
-        )
+        print(f"RESULTADO: Exactas={lista_busquedas}, Rangos={lista_rangos}, Espaciales={lista_espaciales}")
         return lista_busquedas, lista_rangos, lista_espaciales
 
     def _process_delete(self, sql_statement):
@@ -1934,9 +1889,7 @@ class SQLTableManager:
                 )
 
                 if resultado_busqueda.get("error", False):
-                    print(
-                        f"Error al buscar registros para eliminar: {resultado_busqueda.get('message', 'Error desconocido')}"
-                    )
+                    print(f"Error al buscar registros para eliminar: {resultado_busqueda.get('message', 'Error desconocido')}")
                     return resultado_busqueda
 
                 records_to_delete = resultado_busqueda.get("numeros_registro", [])
@@ -1951,9 +1904,7 @@ class SQLTableManager:
                         "message": "No se encontraron registros para eliminar",
                     }
 
-                print(
-                    f"Se encontraron {len(records_to_delete)} registros para eliminar: {records_to_delete}"
-                )
+                print(f"Se encontraron {len(records_to_delete)} registros para eliminar: {records_to_delete}")
 
                 # Eliminar los registros usando el método delete_records del storage manager
                 deleted_count = storage_manager.delete_records(records_to_delete)
@@ -2016,9 +1967,7 @@ class SQLTableManager:
         lista_espaciales = []
 
         try:
-            lista_busquedas, lista_rangos, lista_espaciales = self._parse_where_with_spatial(
-                where_clause, table_name
-            )
+            lista_busquedas, lista_rangos, lista_espaciales = self._parse_where_with_spatial(where_clause, table_name)
         except Exception as e:
             return {"error": True, "message": f"Error al parsear condiciones WHERE: {str(e)}"}
 

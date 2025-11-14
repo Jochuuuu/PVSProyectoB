@@ -38,9 +38,7 @@ class HashIndexEntry:
 
 
 class ExtendibleHashFile:
-    def __init__(
-        self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False
-    ):
+    def __init__(self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False):
         self.record_format = record_format
         self.index_attr = index_attr
         self.table_name = table_name
@@ -220,11 +218,7 @@ class ExtendibleHashFile:
             else:
                 hash_val = 0
         else:
-            field_type = (
-                self.field_types[self.index_attr - 1]
-                if self.index_attr - 1 < len(self.field_types)
-                else "unknown"
-            )
+            field_type = self.field_types[self.index_attr - 1] if self.index_attr - 1 < len(self.field_types) else "unknown"
 
             if field_type == "int":
                 hash_val = value % (2**D)
@@ -290,9 +284,7 @@ class ExtendibleHashFile:
             existing_records = self.search(value)
             if existing_records:
                 existing_value = self.get_attribute_from_record_num(existing_records[0])
-                print(
-                    f"Error: Ya existe un registro con el valor '{existing_value}' (es clave única)"
-                )
+                print(f"Error: Ya existe un registro con el valor '{existing_value}' (es clave única)")
                 return False
 
         # Calcular el hash binario

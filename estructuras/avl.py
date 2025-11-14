@@ -6,9 +6,7 @@ from estructuras.point_class import Point
 
 
 class AVLFile:
-    def __init__(
-        self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False
-    ):
+    def __init__(self, record_format="<i50sdii", index_attr=2, table_name="Productos", is_key=False):
         self.record_format = record_format
         self.index_attr = index_attr  # El atributo a indexar (2 = nombre)
         self.table_name = table_name
@@ -444,9 +442,7 @@ class AVLFile:
             if valor_clave is not None:
                 results = self.search(valor_clave)
                 if results:
-                    print(
-                        f"Clave {clave} (valor: {valor_clave}) ya existe y no se permiten duplicados."
-                    )
+                    print(f"Clave {clave} (valor: {valor_clave}) ya existe y no se permiten duplicados.")
                     return root_index
 
         if root_index == 0:
@@ -456,9 +452,7 @@ class AVLFile:
             root_index = self._insert_rec(clave, root_index)
 
         # Actualizar el root_index en la cabecera
-        header = (
-            self._read_header()
-        )  # Volver a leer la cabecera para obtener el valor actualizado de header
+        header = self._read_header()  # Volver a leer la cabecera para obtener el valor actualizado de header
         self._write_header(root_index, header["header"])
         return root_index
 
@@ -728,23 +722,15 @@ class AVLFile:
             return self._remove_node(root_index)
 
         if target_value < current_value:
-            root_node["left"] = self._delete_specific_record_rec(
-                root_node["left"], target_record_num, target_value
-            )
+            root_node["left"] = self._delete_specific_record_rec(root_node["left"], target_record_num, target_value)
             self._write_node(root_index, root_node)
         elif target_value > current_value:
-            root_node["right"] = self._delete_specific_record_rec(
-                root_node["right"], target_record_num, target_value
-            )
+            root_node["right"] = self._delete_specific_record_rec(root_node["right"], target_record_num, target_value)
             self._write_node(root_index, root_node)
         else:
 
-            root_node["left"] = self._delete_specific_record_rec(
-                root_node["left"], target_record_num, target_value
-            )
-            root_node["right"] = self._delete_specific_record_rec(
-                root_node["right"], target_record_num, target_value
-            )
+            root_node["left"] = self._delete_specific_record_rec(root_node["left"], target_record_num, target_value)
+            root_node["right"] = self._delete_specific_record_rec(root_node["right"], target_record_num, target_value)
             self._write_node(root_index, root_node)
 
         return self._rebalance(root_index)
@@ -791,9 +777,7 @@ class AVLFile:
 
             # Eliminar el sucesor (que ahora está duplicado)
             successor_value = self.get_attribute_from_record_num(successor_node["clave"])
-            node["right"] = self._delete_specific_record_rec(
-                node["right"], successor_node["clave"], successor_value
-            )
+            node["right"] = self._delete_specific_record_rec(node["right"], successor_node["clave"], successor_value)
             self._write_node(node_index, node)
 
             return node_index
