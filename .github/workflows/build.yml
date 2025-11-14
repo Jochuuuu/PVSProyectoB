@@ -92,7 +92,7 @@ jobs:
         continue-on-error: true
 
       - name: Run Pylint
-        run: pylint **/*.py
+        run: pylint main.py sql.py tabla.py #run: pylint **/*.py
         continue-on-error: true
 
   build-and-test:
