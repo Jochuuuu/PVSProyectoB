@@ -604,7 +604,7 @@ class SQLTableManager:
 
                         records.append(record)
 
-                    except Exception as e:
+                    except Exception:
                         continue
 
                 if not records:
@@ -1808,7 +1808,7 @@ class SQLTableManager:
 
                 lista_espaciales.append(["RADIUS", attr_name, center_point, radius])
 
-            except Exception as e:
+            except Exception:
                 import traceback
 
                 traceback.print_exc()
@@ -1824,7 +1824,7 @@ class SQLTableManager:
 
                 lista_espaciales.append(["KNN", attr_name, center_point, k])
 
-            except Exception as e:
+            except Exception:
                 import traceback
 
                 traceback.print_exc()

@@ -81,7 +81,7 @@ class RTreeFile:
                     return json.load(f)
             else:
                 return None
-        except Exception:
+        except Exception as e:
             print(f"Error al cargar metadatos: {e}")
             return None
 

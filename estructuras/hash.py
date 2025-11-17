@@ -33,7 +33,7 @@ class Bucket:
 
 class HashIndexEntry:
     def __init__(self, prefix, bucket_id):
-        self.prefix = prefix  #  '0', '01', '11'
+        self.prefix = prefix  # 0, 01, 11
         self.bucket_id = bucket_id
 
 

@@ -550,8 +550,8 @@ class AVLFile:
                     if not self.is_key:
                         self._search_rec(root_node["left"], target_value, results)
                         self._search_rec(root_node["right"], target_value, results)
-            except:
-                pass
+            #except:
+            #    pass
 
     def range_search(self, min_value, max_value):
         """
@@ -607,7 +607,7 @@ class AVLFile:
                 if current_value <= max_value:
                     self._range_search_rec(root_node["right"], min_value, max_value, results)
 
-        except TypeError as e:
+        except TypeError:
             try:
                 min_str = str(min_value)
                 max_str = str(max_value)
@@ -621,7 +621,7 @@ class AVLFile:
 
                 if current_str <= max_str:
                     self._range_search_rec(root_node["right"], min_value, max_value, results)
-            except Exception as inner_e:
+            except Exception:
                 pass
 
     def delete_record(self, record_num):
