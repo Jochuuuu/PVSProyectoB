@@ -165,7 +165,11 @@ async def execute_sql(request: SQLRequest):
                                     record = storage_manager.get(record_num)
                                     if record:
                                         if requested_attributes:
-                                            filtered_record = {k: v for k, v in record.items() if k in requested_attributes}
+                                            filtered_record = {
+                                                k: v
+                                                for k, v in record.items()
+                                                if k in requested_attributes
+                                            }
                                             # records_data.append({"record_id": record_num, **filtered_record})
                                             records_data.append(filtered_record)
                                         else:
