@@ -2,7 +2,6 @@ import struct
 import os
 import json
 import math
-import pickle
 from rtree import index
 from estructuras.point_class import Point
 
@@ -67,7 +66,7 @@ class RTreeFile:
                 self.rtree_index = index.Index(self.index_filename, properties=properties)
                 self.id_to_point = {}
 
-        except Exception as e:
+        except Exception:
             # Crear índice en memoria como respaldo
             self.rtree_index = index.Index(properties=properties)
             self.id_to_point = {}
@@ -82,7 +81,7 @@ class RTreeFile:
                     return json.load(f)
             else:
                 return None
-        except Exception as e:
+        except Exception:
             print(f"Error al cargar metadatos: {e}")
             return None
 
@@ -181,7 +180,7 @@ class RTreeFile:
 
         except FileNotFoundError:
             return None
-        except Exception as e:
+        except Exception:
             return None
 
     def insert_record(self, record_num):
@@ -279,7 +278,7 @@ class RTreeFile:
 
             return exact_matches
 
-        except Exception as e:
+        except Exception:
             return []
 
     def range_search(self, min_point, max_point):
@@ -313,7 +312,7 @@ class RTreeFile:
 
             return results
 
-        except Exception as e:
+        except Exception:
             return []
 
     def range_search_radius(self, center_point, radius):
@@ -358,7 +357,7 @@ class RTreeFile:
 
             return results
 
-        except Exception as e:
+        except Exception:
             return []
 
     def range_search_knn(self, center_point, k):
@@ -402,7 +401,7 @@ class RTreeFile:
 
             return results
 
-        except Exception as e:
+        except Exception:
             return []
 
     def range_search_knn_simple(self, center_point, k):
@@ -434,7 +433,7 @@ class RTreeFile:
 
             return True
 
-        except Exception as e:
+        except Exception:
             return False
 
     def close(self):
@@ -547,5 +546,5 @@ class RTreeFile:
 
         except FileNotFoundError:
             return False
-        except Exception as e:
+        except Exception:
             return False

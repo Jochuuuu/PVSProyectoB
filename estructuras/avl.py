@@ -200,7 +200,7 @@ class AVLFile:
 
         except FileNotFoundError:
             return None
-        except Exception as e:
+        except Exception:
             return None
 
     def _compare_keys(self, record_num1, record_num2):
@@ -551,7 +551,6 @@ class AVLFile:
                         self._search_rec(root_node["left"], target_value, results)
                         self._search_rec(root_node["right"], target_value, results)
             except:
-                # Si todo falla, saltar este nodo
                 pass
 
     def range_search(self, min_value, max_value):
