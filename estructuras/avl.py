@@ -323,7 +323,7 @@ class AVLFile:
             return index
         else:
             # No hay nodos libres, crear uno nuevo al final del archivo
-       
+
             with open(self.filename, "ab") as f:
                 # El índice ahora depende del tamaño del archivo y la cabecera
                 index = (f.tell() - self.header_size) // self.record_node_size + 1
@@ -357,11 +357,11 @@ class AVLFile:
         if x_index == 0:
             return y_index
         x = self._read_node(x_index)
-        t2_index  = x["right"]
+        t2_index = x["right"]
 
         # Rotación
         x["right"] = y_index
-        y["left"] = t2_index 
+        y["left"] = t2_index
 
         self._write_node(y_index, y)
         self._write_node(x_index, x)
@@ -465,7 +465,7 @@ class AVLFile:
         elif comparison == 0 and self.is_key:
             # Si es árbol de claves únicas y valores iguales, no hacer nada
             return root_index
-        else:    # comparison > 0 O (comparison == 0 and not self.is_key)  # Insertar a la derecha
+        else:  # comparison > 0 O (comparison == 0 and not self.is_key)  # Insertar a la derecha
             root_node["right"] = self._insert_rec(clave, root_node["right"])
             self._write_node(root_index, root_node)
 
