@@ -550,8 +550,8 @@ class AVLFile:
                     if not self.is_key:
                         self._search_rec(root_node["left"], target_value, results)
                         self._search_rec(root_node["right"], target_value, results)
-            #except:
-            #    pass
+            except Exception:
+                pass
 
     def range_search(self, min_value, max_value):
         """

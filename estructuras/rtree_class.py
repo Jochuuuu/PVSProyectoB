@@ -445,7 +445,7 @@ class RTreeFile:
         try:
             if hasattr(self, "rtree_index") and self.rtree_index:
                 self.rtree_index.close()
-        except:
+        except Exception:
             pass
 
     def get_stats(self):

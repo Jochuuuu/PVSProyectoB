@@ -10,6 +10,7 @@ import bcrypt
 import jwt
 from datetime import datetime, timedelta, timezone
 
+
 class SQLRequest(BaseModel):
     sql: str
 
@@ -268,7 +269,7 @@ async def get_tables():
                     record_count = storage_manager._get_record_count()
                     active_records = storage_manager._get_all_active_record_numbers()
                     active_count = len(active_records)
-                except:
+                except Exception:
                     pass
 
             # Extraer información de los atributos
@@ -332,7 +333,7 @@ async def get_table_info(table_name: str):
             all_records = storage_manager.get_all_records()
             # Tomar los primeros 5 registros como muestra
             sample_records = serialize_records_data(all_records[:5])
-        except:
+        except Exception:
             pass
 
     return {
@@ -343,11 +344,9 @@ async def get_table_info(table_name: str):
     }
 
 
-
-
-
 # Modelos para requests
 class RegisterRequest(BaseModel):
+
     user: str
     password: str
 

@@ -359,7 +359,7 @@ class TableStorageManager:
                         point = Point.from_string(value)
                         values.append(point.x)
                         values.append(point.y)
-                    except:
+                    except Exception:
                         # Si falla el parsing, usar valores por defecto
                         values.append(0.0)
                         values.append(0.0)
@@ -492,7 +492,7 @@ class TableStorageManager:
                 elif isinstance(value, str):
                     try:
                         validated_record[attr_name] = Point.from_string(value)
-                    except:
+                    except Exception:
                         validated_record[attr_name] = Point(0.0, 0.0)
                 elif isinstance(value, dict) and "x" in value and "y" in value:
                     validated_record[attr_name] = Point(float(value["x"]), float(value["y"]))
@@ -561,7 +561,7 @@ class TableStorageManager:
                 for attr_name, index in self.indices.items():
                     try:
                         if hasattr(index, "delete_record"):
-                            result = index.delete_record(record_num)
+                            index.delete_record(record_num)  # antes era result = 
                         else:
                             if isinstance(index, dict) and attr_name in record:
                                 value = record[attr_name]
@@ -599,7 +599,7 @@ class TableStorageManager:
         for attr_name, index in self.indices.items():
             try:
                 if hasattr(index, "delete_record"):
-                    result = index.delete_record(record_num)
+                    index.delete_record(record_num) # antes iba result = 
                 else:
                     if attr_name in record:
                         value = record[attr_name]
@@ -830,7 +830,7 @@ class TableStorageManager:
             elif isinstance(value, str):
                 try:
                     return Point.from_string(value)
-                except:
+                except Exception:
                     return Point(0.0, 0.0)
             elif isinstance(value, dict) and "x" in value and "y" in value:
                 return Point(float(value["x"]), float(value["y"]))
