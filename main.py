@@ -1,14 +1,19 @@
+# 1. Imports estándar
+import os
+import time
+from datetime import datetime, timedelta, timezone
+
+# 2. Imports de terceros
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import os
-import time
+import bcrypt
+import jwt
+
+# 3. Imports propios
 from sql import SQLTableManager
 from tabla import TableStorageManager
 from estructuras.point_class import Point
-import bcrypt
-import jwt
-from datetime import datetime, timedelta, timezone
 
 
 class SQLRequest(BaseModel):
