@@ -465,6 +465,7 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Build: ${{ needs.build-and-test.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Style: ${{ needs.code-style-check.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- SonarQube: ${{ needs.sonarqube-analysis.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Deploy: ${{ needs.deploy-backend.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- JMeter: ${{ needs.jmeter-tests.result }}" >> $GITHUB_STEP_SUMMARY
