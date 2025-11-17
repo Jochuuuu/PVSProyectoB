@@ -253,7 +253,6 @@ class TableStorageManager:
         with open(metadata_file, "w", encoding="utf-8") as mf:
             json.dump(self.table_info, mf, indent=2)
 
-
     def _get_metadata_path(self):
         """Obtiene la ruta del archivo de metadatos."""
         return os.path.join(self.base_dir, f"{self.table_name}_meta.json")
