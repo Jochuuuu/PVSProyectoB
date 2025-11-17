@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 import csv
 import json
+import traceback
 from estructuras.point_class import Point  # Importar la clase Point
 
 SELECT_KEYWORD = "SELECT "
@@ -549,7 +550,7 @@ class SQLTableManager:
                 records = []
                 primary_key_attr = table_info.get("primary_key")
 
-                for row_num, row in enumerate(data_rows, 1):
+                for _, row in enumerate(data_rows, 1):
                     try:
                         record = {}
 
@@ -1809,7 +1810,6 @@ class SQLTableManager:
                 lista_espaciales.append(["RADIUS", attr_name, center_point, radius])
 
             except Exception:
-                import traceback
 
                 traceback.print_exc()
 
@@ -1825,7 +1825,6 @@ class SQLTableManager:
                 lista_espaciales.append(["KNN", attr_name, center_point, k])
 
             except Exception:
-                import traceback
 
                 traceback.print_exc()
 

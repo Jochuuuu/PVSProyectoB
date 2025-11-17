@@ -236,20 +236,23 @@ class TableStorageManager:
             return f"{size}s", size
 
         # Para los tipos básicos
-        for base_type in self.TYPE_FORMATS:
+        for base_type, fmt in self.TYPE_FORMATS.items():
             if data_type.startswith(base_type):
-                return self.TYPE_FORMATS[base_type], self.TYPE_SIZES.get(base_type, 4)
-
+                return fmt, self.TYPE_SIZES.get(base_type, 4)
         # Tipo no reconocido, usar un formato genérico
         return "i", 4
 
     def _initialize_file(self):
         """Inicializa el archivo con un encabezado que indica que no hay registros eliminados."""
+        # Archivo BINARIO → encoding no necesario
         with open(self.filename, "wb") as f:
             f.write(struct.pack(self.header_format, -1))
-            metadata_file = self._get_metadata_path()
-            with open(metadata_file, "w") as mf:
-                json.dump(self.table_info, mf, indent=2)
+
+        # Archivo JSON (texto) → agregar encoding UTF-8
+        metadata_file = self._get_metadata_path()
+        with open(metadata_file, "w", encoding="utf-8") as mf:
+            json.dump(self.table_info, mf, indent=2)
+
 
     def _get_metadata_path(self):
         """Obtiene la ruta del archivo de metadatos."""
@@ -461,7 +464,7 @@ class TableStorageManager:
 
             self._write_record(record_id, validated_record)
 
-        for attr_name, index in self.indices.items():
+        for _, index in self.indices.items():
             index.insert_record(record_id)
 
         return record_id
