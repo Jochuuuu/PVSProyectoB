@@ -561,7 +561,7 @@ class TableStorageManager:
                 for attr_name, index in self.indices.items():
                     try:
                         if hasattr(index, "delete_record"):
-                            index.delete_record(record_num)  # antes era result = 
+                            index.delete_record(record_num)  # antes era result =
                         else:
                             if isinstance(index, dict) and attr_name in record:
                                 value = record[attr_name]
@@ -599,7 +599,7 @@ class TableStorageManager:
         for attr_name, index in self.indices.items():
             try:
                 if hasattr(index, "delete_record"):
-                    index.delete_record(record_num) # antes iba result = 
+                    index.delete_record(record_num)  # antes iba result =
                 else:
                     if attr_name in record:
                         value = record[attr_name]
