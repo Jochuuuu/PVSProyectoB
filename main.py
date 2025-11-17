@@ -250,7 +250,7 @@ async def execute_sql(request: SQLRequest):
         return result
 
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error SQL: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error SQL: {str(e)}") from e
 
 
 @app.get("/tables")
