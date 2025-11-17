@@ -2,7 +2,6 @@ import os
 import struct
 import json
 import re
-from pathlib import Path
 from estructuras.hash import ExtendibleHashFile
 from estructuras.avl import AVLFile
 from estructuras.point_class import Point

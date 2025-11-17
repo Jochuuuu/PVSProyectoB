@@ -4,11 +4,12 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 import os
 import time
-import json
 from sql import SQLTableManager
 from tabla import TableStorageManager
 from estructuras.point_class import Point
-
+import bcrypt
+import jwt
+from datetime import datetime, timedelta, timezone
 
 class SQLRequest(BaseModel):
     sql: str
@@ -343,11 +344,7 @@ async def get_table_info(table_name: str):
     }
 
 
-# Necesitarás instalar: pip install bcrypt pyjwt
-from pydantic import BaseModel
-import bcrypt
-import jwt
-from datetime import datetime, timedelta, timezone
+
 
 
 # Modelos para requests
