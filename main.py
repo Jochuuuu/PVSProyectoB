@@ -24,11 +24,7 @@ app = FastAPI(title="BD2", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://pvsproyectof.pages.dev",
-        "http://localhost:8080",
-        "http://localhost:5500"
-    ],
+    allow_origins=["https://pvsproyectof.pages.dev", "http://localhost:8080", "http://localhost:5500"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
