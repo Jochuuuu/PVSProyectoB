@@ -77,8 +77,16 @@ async def add_security_headers(request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Content-Security-Policy"] = "default-src 'self'"
     response.headers["Strict-Transport-Security"] = "max-age=31536000"
+
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+
+    if "Server" in response.headers:
+        del response.headers["Server"]
+
     return response
-    
+
+
 @app.on_event("startup")
 async def startup():
     """Inicializa el sistema al arrancar"""
