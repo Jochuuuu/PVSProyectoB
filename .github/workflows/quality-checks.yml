@@ -1,0 +1,75 @@
+name: Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      run-sonarqube:
+        required: true
+        type: string
+
+jobs:
+  code-style:
+    name: Google Code Style Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install linting tools
+        run: pip install pylint flake8 black
+      
+      - name: Run Pylint
+        run: pylint main.py sql.py tabla.py
+        continue-on-error: true
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run tests
+        run: |
+          pytest --cov=. --cov-report=xml --ignore=tests/test_login_selenium.py
+      
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.environment }}
+          path: coverage.xml
+
+  sonarqube:
+    name: SonarQube Analysis
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    if: inputs.run-sonarqube == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-${{ inputs.environment }}
+      
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

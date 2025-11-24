@@ -1,0 +1,49 @@
+name: Deploy Backend
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  deploy-backend:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libspatialindex-dev
+          pip install -r requirements.txt
+      
+      - name: Set port
+        id: port
+        run: |
+          if [[ "${{ inputs.environment }}" == "prod" ]]; then
+            echo "port=8000" >> $GITHUB_OUTPUT
+          elif [[ "${{ inputs.environment }}" == "qa" ]]; then
+            echo "port=8001" >> $GITHUB_OUTPUT
+          else
+            echo "port=8002" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Start backend
+        run: |
+          nohup uvicorn main:app --host 0.0.0.0 --port ${{ steps.port.outputs.port }} > backend.log 2>&1 &
+          sleep 15
+          curl -f http://localhost:${{ steps.port.outputs.port }}/health
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-${{ inputs.environment }}
+          path: backend.log

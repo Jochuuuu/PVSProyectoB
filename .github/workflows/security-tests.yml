@@ -1,0 +1,56 @@
+name: Security Tests
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  selenium:
+    name: Selenium UI Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - uses: browser-actions/setup-chrome@latest
+      
+      - name: Install Selenium
+        run: pip install selenium pytest
+      
+      - name: Run Selenium tests
+        run: pytest tests/test_login_selenium.py -v
+      
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-${{ inputs.environment }}
+          path: tests/screenshots/
+
+  owasp:
+    name: OWASP Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y libspatialindex-dev
+          pip install -r requirements.txt requests
+      
+      - name: Start backend
+        run: |
+          PORT=$([[ "${{ inputs.environment }}" == "dev" ]] && echo 8002 || echo 8001)
+          nohup uvicorn main:app --port $PORT > backend.log 2>&1 &
+          sleep 15
+      
+      - name: Run OWASP tests
+        run: pytest tests/test_security_headers.py -v

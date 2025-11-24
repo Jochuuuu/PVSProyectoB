@@ -1,0 +1,64 @@
+name: Performance Tests
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  newman:
+    name: Newman API Tests
+    runs-on: ubuntu-latest
+    if: inputs.environment != 'prod'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install Newman
+        run: npm install -g newman
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Start backend
+        run: |
+          sudo apt-get install -y libspatialindex-dev
+          pip install -r requirements.txt
+          PORT=$([[ "${{ inputs.environment }}" == "qa" ]] && echo 8001 || echo 8002)
+          nohup uvicorn main:app --port $PORT > backend.log 2>&1 &
+          sleep 15
+      
+      - name: Run Newman
+        run: newman run postman/backend-api-tests.json
+
+  jmeter:
+    name: JMeter Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Setup backend
+        run: |
+          sudo apt-get install -y libspatialindex-dev
+          pip install -r requirements.txt
+          PORT=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 8000 || echo 8002)
+          nohup uvicorn main:app --port $PORT > backend.log 2>&1 &
+          sleep 15
+      
+      - name: Install JMeter
+        run: |
+          wget -q https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          tar -xzf apache-jmeter-5.6.3.tgz
+      
+      - name: Run JMeter
+        run: |
+          THREADS=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 50 || echo 10)
+          apache-jmeter-5.6.3/bin/jmeter -n -t tests/jmeter/backend-test.jmx -JThreads=$THREADS
