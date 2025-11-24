@@ -53,4 +53,4 @@ jobs:
           sleep 15
       
       - name: Run OWASP tests
-        run: pytest tests/test_security_headers.py -v
+        run: pytest tests/test_security_headers.py -v -s
