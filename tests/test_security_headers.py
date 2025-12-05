@@ -120,7 +120,7 @@ def test_owasp_a03_complete():
     
     print("\n" + "="*70 + "\n")
     
-    assert True
+    assert results['tests_run'] > 0, "No tests were executed"
 # ============================================
 # 3. AUTHENTICATION (OWASP A07:2021)
 # ============================================
