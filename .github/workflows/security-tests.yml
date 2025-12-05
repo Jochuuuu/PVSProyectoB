@@ -63,9 +63,11 @@ jobs:
       
       - name: Run OWASP tests
         run: |
-          pytest tests/test_security_headers.py -v -s \
-            --html=owasp-report.html \
-            --self-contained-html
+          # Ejecutar tests y capturar output con colores
+          pytest tests/test_security_headers.py -v -s --color=yes | tee owasp-output.txt
+          
+          # Convertir ANSI colors a HTML
+          cat owasp-output.txt | ansi2html > owasp-report.html
       
       - name: Upload OWASP Report
         if: always()
@@ -74,4 +76,5 @@ jobs:
           name: owasp-security-report-${{ inputs.environment }}
           path: |
             owasp-report.html
+            owasp-output.txt
             backend.log
