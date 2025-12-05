@@ -51,7 +51,20 @@ jobs:
           pip install -r requirements.txt
           PORT=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 8000 || echo 8002)
           nohup uvicorn main:app --port $PORT > backend.log 2>&1 &
-          sleep 15
+          
+          # Wait for backend with health check
+          echo "Waiting for backend on port $PORT..."
+          for i in {1..30}; do
+            if curl -f http://localhost:$PORT/health > /dev/null 2>&1; then
+              echo "✓ Backend is ready!"
+              break
+            fi
+            echo "Attempt $i/30..."
+            sleep 2
+          done
+          
+          # Verify or fail
+          curl -f http://localhost:$PORT/health || (echo "Backend failed to start" && cat backend.log && exit 1)
       
       - name: Install JMeter
         run: |
@@ -61,22 +74,19 @@ jobs:
       - name: Run JMeter
         run: |
           THREADS=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 50 || echo 10)
-          apache-jmeter-5.6.3/bin/jmeter -n -t tests/jmeter/backend-test.jmx -JThreads=$THREADS
-
-      - name: Generate JMeter HTML Report
-        if: always()                                 # ← Ejecuta aunque haya errores
-        run: |
-          mkdir -p jmeter-report
-          apache-jmeter-5.6.3/bin/jmeter \
-            -g jmeter-results.jtl \
-            -o jmeter-report/
-    
-      - name: Upload JMeter Results
-        if: always()                               
+          PORT=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 8000 || echo 8002)
+          
+          echo "Running JMeter with THREADS=$THREADS on PORT=$PORT"
+          
+          # Run JMeter and capture output
+          apache-jmeter-5.6.3/bin/jmeter -n \
+            -t tests/jmeter/backend-test.jmx \
+            -JThreads=$THREADS \
+            -JPORT=$PORT
+      
+      - name: Upload backend logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jmeter-performance-${{ inputs.environment }}
-          path: |
-            jmeter-results.jtl
-            jmeter-report/
-            backend.log
+          name: jmeter-backend-logs-${{ inputs.environment }}
+          path: backend.log
