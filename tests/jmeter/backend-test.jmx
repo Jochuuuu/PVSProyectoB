@@ -22,7 +22,7 @@
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET Root">
           <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
-          <stringProp name="HTTPSampler.port">8000</stringProp>
+          <stringProp name="HTTPSampler.port">${__P(PORT,8002)}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
@@ -36,7 +36,7 @@
         <hashTree/>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST Login">
           <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
-          <stringProp name="HTTPSampler.port">8000</stringProp>
+          <stringProp name="HTTPSampler.port">${__P(PORT,8002)}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/login</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
@@ -70,7 +70,7 @@
         </hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="POST SQL">
           <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
-          <stringProp name="HTTPSampler.port">8000</stringProp>
+          <stringProp name="HTTPSampler.port">${__P(PORT,8002)}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/sql</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
@@ -103,7 +103,7 @@
         </hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET Tables">
           <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
-          <stringProp name="HTTPSampler.port">8000</stringProp>
+          <stringProp name="HTTPSampler.port">${__P(PORT,8002)}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.path">/tables</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
