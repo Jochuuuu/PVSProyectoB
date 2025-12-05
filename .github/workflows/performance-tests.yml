@@ -62,3 +62,21 @@ jobs:
         run: |
           THREADS=$([[ "${{ inputs.environment }}" == "prod" ]] && echo 50 || echo 10)
           apache-jmeter-5.6.3/bin/jmeter -n -t tests/jmeter/backend-test.jmx -JThreads=$THREADS
+
+      - name: Generate JMeter HTML Report
+        if: always()                                 # ← Ejecuta aunque haya errores
+        run: |
+          mkdir -p jmeter-report
+          apache-jmeter-5.6.3/bin/jmeter \
+            -g jmeter-results.jtl \
+            -o jmeter-report/
+    
+      - name: Upload JMeter Results
+        if: always()                               
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-performance-${{ inputs.environment }}
+          path: |
+            jmeter-results.jtl
+            jmeter-report/
+            backend.log
